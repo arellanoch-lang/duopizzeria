@@ -8,6 +8,11 @@
  *   en todos los móviles/tablets/ordenadores que usen la web o el panel
  * - Reparte el número de pedido de forma centralizada, para que nunca se
  *   dupliquen aunque varios clientes pidan al mismo tiempo desde dispositivos distintos
+ * - Protege los datos con dos claves:
+ *     · Clave del panel (personal): ver pedidos y cambiar su estado.
+ *     · Clave de Configuración (dueño): todo lo anterior, más pausa y configuración.
+ *   Sin la clave no se entregan pedidos (nombres, teléfonos, direcciones) ni se cambia nada.
+ *   La configuración pública que lee la web de clientes nunca incluye las claves.
  *
  * CÓMO INSTALARLO (una sola vez):
  * 1. Crea una Google Sheet nueva (sheets.new)
@@ -35,6 +40,9 @@ const HEADERS = ["Fecha y hora", "Nº Pedido", "Tipo", "Nombre", "Teléfono", "D
 const CONFIG_SHEET_NAME = "Configuracion";
 const ORDER_COUNTER_KEY = "nextOrderNumber";
 const FIRST_ORDER_NUMBER = 1001;
+// Clave de Configuración si todavía no se ha guardado ninguna en la hoja.
+// Cámbiala desde el panel (Configuración) en cuanto lo instales.
+const DEFAULT_ADMIN_PASSWORD = "duo2026";
 
 function getSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -69,19 +77,47 @@ function upsertConfigRow(sheet, key, value) {
   sheet.appendRow([key, value]);
 }
 
-function loadConfigObject() {
+function readConfigMap() {
   const sheet = getConfigSheet();
   const rows = sheet.getDataRange().getValues();
   const map = {};
   for (let i = 1; i < rows.length; i++) {
     map[rows[i][0]] = rows[i][1];
   }
+  return map;
+}
+
+function getPasswords() {
+  const map = readConfigMap();
+  return {
+    admin: map.adminPassword !== undefined ? String(map.adminPassword) : DEFAULT_ADMIN_PASSWORD,
+    staff: map.staffPassword !== undefined ? String(map.staffPassword) : ""
+  };
+}
+
+// Devuelve "admin", "staff" o null según la clave recibida.
+// Si la clave de Configuración está vacía, no se pide clave para nada (como antes).
+function roleFor(key) {
+  const pw = getPasswords();
+  const k = String(key === undefined || key === null ? "" : key);
+  if (pw.admin === "" || k === pw.admin) return "admin";
+  if (pw.staff !== "" && k === pw.staff) return "staff";
+  return null;
+}
+
+// includeSecrets = true solo para el dueño ya identificado (pantalla de Configuración).
+function loadConfigObject(includeSecrets) {
+  const map = readConfigMap();
 
   const result = {};
   if (map.phone !== undefined) result.phone = String(map.phone);
   if (map.whatsappEnabled !== undefined) result.whatsappEnabled = String(map.whatsappEnabled) === "true";
   if (map.testMode !== undefined) result.testMode = String(map.testMode) === "true";
-  if (map.adminPassword !== undefined) result.adminPassword = String(map.adminPassword);
+  if (includeSecrets) {
+    const pw = getPasswords();
+    result.adminPassword = pw.admin;
+    result.staffPassword = pw.staff;
+  }
   if (map.pauseActive !== undefined || map.pauseMessage !== undefined) {
     result.pause = {
       active: String(map.pauseActive) === "true",
@@ -109,6 +145,7 @@ function saveConfigObject(cfg) {
   if (cfg.whatsappEnabled !== undefined) upsertConfigRow(sheet, "whatsappEnabled", String(cfg.whatsappEnabled));
   if (cfg.testMode !== undefined) upsertConfigRow(sheet, "testMode", String(cfg.testMode));
   if (cfg.adminPassword !== undefined) upsertConfigRow(sheet, "adminPassword", cfg.adminPassword);
+  if (cfg.staffPassword !== undefined) upsertConfigRow(sheet, "staffPassword", cfg.staffPassword);
   if (cfg.pause !== undefined) {
     upsertConfigRow(sheet, "pauseActive", String(cfg.pause.active));
     upsertConfigRow(sheet, "pauseMessage", cfg.pause.message || "");
@@ -168,7 +205,26 @@ function doPost(e) {
       return jsonResponse({ success: true, orderNumber: orderNumber });
     }
 
+    // ----- A partir de aquí, todo necesita clave -----
+    const role = roleFor(data.key);
+
+    if (data.action === "login") {
+      if (!role) return jsonResponse({ success: false, error: "auth" });
+      return jsonResponse({ success: true, role: role });
+    }
+
+    if (data.action === "listOrders") {
+      if (!role) return jsonResponse({ success: false, error: "auth" });
+      return jsonResponse({ success: true, orders: listOrders() });
+    }
+
+    if (data.action === "adminConfig") {
+      if (role !== "admin") return jsonResponse({ success: false, error: "auth" });
+      return jsonResponse({ success: true, config: loadConfigObject(true) });
+    }
+
     if (data.action === "updateStatus") {
+      if (!role) return jsonResponse({ success: false, error: "auth" });
       const sheet = getSheet();
       const rows = sheet.getDataRange().getValues();
       for (let i = 1; i < rows.length; i++) {
@@ -188,6 +244,7 @@ function doPost(e) {
     }
 
     if (data.action === "saveConfig") {
+      if (role !== "admin") return jsonResponse({ success: false, error: "auth" });
       saveConfigObject(data.config || {});
       return jsonResponse({ success: true });
     }
@@ -200,9 +257,13 @@ function doPost(e) {
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.action === "config") {
-    return jsonResponse(loadConfigObject());
+    return jsonResponse(loadConfigObject(false));
   }
+  // Los pedidos ya no se entregan por GET: el panel los pide con su clave (listOrders).
+  return jsonResponse({ success: false, error: "auth" });
+}
 
+function listOrders() {
   const sheet = getSheet();
   const rows = sheet.getDataRange().getValues();
   const orders = [];
@@ -224,7 +285,7 @@ function doGet(e) {
       deliveredAt: row[11] || null
     });
   }
-  return jsonResponse(orders);
+  return orders;
 }
 
 function jsonResponse(obj) {

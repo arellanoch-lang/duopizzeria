@@ -523,7 +523,7 @@
 /* ---------- CONEXIÓN CON GOOGLE SHEETS (compartida por todos los dispositivos) ----------
    Pega aquí la URL de tu Apps Script una vez implementado. Es la MISMA URL
    para todos los móviles/tablets/ordenadores: clientes y dueño. Así toda la
-   configuración (horario, pausa, carta, pizza destacada, contraseña) y la numeración de
+   configuración (horario, pausa, carta, pizza destacada) y la numeración de
    pedidos se guardan en un único sitio en vez de en cada dispositivo por separado. */
 const SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby29zE7Pk4KZaNWdQsKBQIWAeKPy9DnQXVzUV2Anvop-8Yz_YPgwWy60xsWlxHcitXnZA/exec";
 
@@ -576,7 +576,6 @@ const DEFAULT_CONFIG = {
   phone: "34606690119",
   whatsappEnabled: true,
   testMode: false,
-  adminPassword: "duo2026",
   menu: DEFAULT_MENU,
   // Pizza destacada en la portada. Se cambia desde el panel del dueño (Configuración).
   featured: { id:"p26", label: DEFAULT_FEATURED_LABEL },
@@ -606,6 +605,7 @@ function loadConfig(){
   if(!stored) return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
   if(!stored.menu || stored.menu.length===0) stored.menu = JSON.parse(JSON.stringify(DEFAULT_MENU));
   if(!stored.featured) stored.featured = JSON.parse(JSON.stringify(DEFAULT_CONFIG.featured));
+  delete stored.adminPassword; // versiones antiguas la guardaban aquí; la web de clientes no la necesita
   return stored;
 }
 
@@ -634,7 +634,6 @@ function mergeRemoteConfig(base, remote){
   if(remote.phone !== undefined) merged.phone = remote.phone;
   if(remote.whatsappEnabled !== undefined) merged.whatsappEnabled = remote.whatsappEnabled;
   if(remote.testMode !== undefined) merged.testMode = remote.testMode;
-  if(remote.adminPassword !== undefined) merged.adminPassword = remote.adminPassword;
   if(remote.pause !== undefined) merged.pause = remote.pause;
   if(remote.schedule !== undefined) merged.schedule = remote.schedule;
   if(remote.menu !== undefined && remote.menu.length > 0) merged.menu = remote.menu;

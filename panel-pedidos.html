@@ -444,6 +444,7 @@
       <span id="pauseBtnLabel">Pausar pedidos</span>
     </button>
     <button class="gear-btn" id="changeUrlBtn" style="display:none;">Cambiar hoja</button>
+    <button class="gear-btn" id="logoutBtn" style="display:none;">Cerrar sesión</button>
   </div>
 </header>
 
@@ -490,6 +491,18 @@
       <button class="btn-secondary" id="pauseCancel">Cancelar</button>
       <button class="save-btn" id="pauseNext">Continuar</button>
     </div>
+  </div>
+</div>
+
+<div class="setup-screen" id="loginScreen" style="display:none;">
+  <div class="setup-card">
+    <div class="setup-title display">Entrar al panel</div>
+    <div class="setup-desc">Escribe la clave del panel o la de Configuración.</div>
+    <label class="field-label" for="loginPassword">Clave</label>
+    <input type="password" id="loginPassword" placeholder="••••••" autocomplete="current-password">
+    <div id="loginError" class="gate-error" role="alert" style="margin-top:12px;"></div>
+    <button class="btn-primary" id="loginBtn">Entrar</button>
+    <div class="setup-hint">Se recuerda en este dispositivo hasta que pulses "Cerrar sesión".</div>
   </div>
 </div>
 
@@ -586,7 +599,12 @@
       <div class="field-group">
         <label class="field-label">Contraseña de acceso a esta sección</label>
         <input type="password" id="settingsAdminPassword" placeholder="Déjalo vacío para no pedir contraseña">
-        <div class="field-hint">Si la rellenas, la próxima vez que alguien entre a Configuración tendrá que introducirla.</div>
+        <div class="field-hint">Solo para el dueño: Configuración y pausa de pedidos. También sirve para entrar al panel. Si la dejas vacía, el panel y los datos de los clientes quedan abiertos a cualquiera.</div>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="settingsStaffPassword">Clave del panel (personal)</label>
+        <input type="text" id="settingsStaffPassword" placeholder="Ej: cocina2026" autocomplete="off">
+        <div class="field-hint">Para el personal: entra al panel, ve los pedidos y cambia su estado, pero no puede pausar ni tocar la configuración. Si la dejas vacía, solo se entra con la clave de Configuración.</div>
       </div>
       <div class="field-group" style="margin-bottom:0;">
         <label class="field-label">Número de WhatsApp del restaurante</label>
@@ -682,7 +700,10 @@
 const SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby29zE7Pk4KZaNWdQsKBQIWAeKPy9DnQXVzUV2Anvop-8Yz_YPgwWy60xsWlxHcitXnZA/exec";
 
 const STORAGE_KEY = "burgerAppPanelUrl_v1";
+const PANEL_KEY_STORAGE = "duoPanelKey_v1";
 let scriptUrl = null;
+let panelKey = null;   // clave con la que se ha entrado al panel (personal o dueño)
+let adminKey = null;   // clave de Configuración ya comprobada en esta visita
 let ordersCache = [];
 let pollTimer = null;
 let pausePollTimer = null;
@@ -698,21 +719,115 @@ function saveUrl(url){
   try{ localStorage.setItem(STORAGE_KEY, url); }catch(e){ /* solo esta sesión */ }
 }
 
-function showBoard(){
+/* ---------- CLAVES Y SESIÓN ----------
+   El Apps Script comprueba la clave en cada petición: sin ella no entrega
+   los pedidos ni deja cambiar nada. Aquí solo se recuerda en este dispositivo. */
+function loadPanelKey(){
+  try{ return localStorage.getItem(PANEL_KEY_STORAGE); }catch(e){ return null; }
+}
+function savePanelKey(key){
+  try{
+    if(key === null) localStorage.removeItem(PANEL_KEY_STORAGE);
+    else localStorage.setItem(PANEL_KEY_STORAGE, key);
+  }catch(e){ /* solo esta sesión */ }
+}
+
+// Llama al Apps Script. Devuelve la respuesta, o null si no hay conexión.
+async function api(action, payload, key){
+  try{
+    const res = await fetch(scriptUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(Object.assign({ action, key: key === undefined ? panelKey : key }, payload || {}))
+    });
+    return await res.json();
+  }catch(err){
+    return null;
+  }
+}
+
+function apiErrorMessage(r){
+  if(!r) return "No se pudo conectar con la hoja. Comprueba la conexión e inténtalo de nuevo.";
+  if(r.error === "auth") return "Clave incorrecta.";
+  if(/no reconocida/i.test(r.error || "")) return "El Apps Script está desactualizado: publica la nueva versión de Code.gs (Implementar → Gestionar implementaciones → Nueva versión).";
+  return "Error de la hoja: " + (r.error || "desconocido");
+}
+
+function hideAllScreens(){
   document.getElementById("setupScreen").style.display = "none";
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("board").classList.remove("show");
+  document.getElementById("statsView").classList.remove("show");
+  document.getElementById("settingsView").classList.remove("show");
+  ["changeUrlBtn","logoutBtn","pauseBtn"].forEach(id=> document.getElementById(id).style.display = "none");
+  document.getElementById("pauseBanner").hidden = true;
+  document.getElementById("viewTabs").style.display = "none";
+}
+
+function showLogin(message){
+  stopPolling();
+  hideAllScreens();
+  document.getElementById("loginScreen").style.display = "block";
+  document.getElementById("changeUrlBtn").style.display = "inline-block";
+  document.getElementById("loginPassword").value = "";
+  const err = document.getElementById("loginError");
+  err.textContent = message || "";
+  err.style.display = message ? "block" : "none";
+  setTimeout(()=> document.getElementById("loginPassword").focus(), 50);
+}
+
+// Intenta entrar con una clave. Si vale, abre el tablero y la recuerda.
+async function enterPanel(key, fromForm){
+  const r = await api("login", {}, key);
+  if(r && r.success){
+    panelKey = key;
+    savePanelKey(key);
+    showBoard();
+    document.getElementById("viewTabPedidos").click();
+    fetchOrders();
+    startPolling();
+    return true;
+  }
+  if(r && r.error === "auth" && !fromForm){
+    savePanelKey(null);
+    showLogin("");
+  } else {
+    showLogin(apiErrorMessage(r));
+  }
+  return false;
+}
+
+function logout(message){
+  panelKey = null;
+  adminKey = null;
+  savePanelKey(null);
+  ordersCache = [];
+  showLogin(message || "");
+}
+
+document.getElementById("loginBtn").addEventListener("click", async ()=>{
+  const btn = document.getElementById("loginBtn");
+  btn.disabled = true;
+  btn.textContent = "Entrando...";
+  await enterPanel(document.getElementById("loginPassword").value, true);
+  btn.disabled = false;
+  btn.textContent = "Entrar";
+});
+document.getElementById("loginPassword").addEventListener("keydown", e=>{ if(e.key === "Enter") document.getElementById("loginBtn").click(); });
+document.getElementById("logoutBtn").addEventListener("click", ()=> logout());
+
+function showBoard(){
+  hideAllScreens();
   document.getElementById("board").classList.add("show");
+  document.getElementById("logoutBtn").style.display = "inline-block";
   document.getElementById("changeUrlBtn").style.display = "inline-block";
   document.getElementById("pauseBtn").style.display = "inline-flex";
   document.getElementById("viewTabs").style.display = "flex";
   refreshPauseState();
 }
 function showSetup(){
+  hideAllScreens();
   document.getElementById("setupScreen").style.display = "block";
-  document.getElementById("board").classList.remove("show");
-  document.getElementById("changeUrlBtn").style.display = "none";
-  document.getElementById("pauseBtn").style.display = "none";
-  document.getElementById("pauseBanner").hidden = true;
-  document.getElementById("viewTabs").style.display = "none";
 }
 
 document.getElementById("connectBtn").addEventListener("click", ()=>{
@@ -720,9 +835,9 @@ document.getElementById("connectBtn").addEventListener("click", ()=>{
   if(!url) return;
   scriptUrl = url;
   saveUrl(url);
-  showBoard();
-  fetchOrders();
-  startPolling();
+  const stored = loadPanelKey();
+  if(stored !== null) enterPanel(stored);
+  else showLogin("");
 });
 
 document.getElementById("changeUrlBtn").addEventListener("click", ()=>{
@@ -745,9 +860,13 @@ async function fetchOrders(){
   const statusEl = document.getElementById("refreshStatus");
   try{
     statusEl.textContent = "Actualizando…";
-    const res = await fetch(scriptUrl, { method:"GET" });
-    const data = await res.json();
-    ordersCache = Array.isArray(data) ? data : [];
+    const data = await api("listOrders");
+    if(data && data.error === "auth"){
+      logout("La clave ha cambiado. Vuelve a entrar.");
+      return;
+    }
+    if(!data || !data.success) throw new Error(apiErrorMessage(data));
+    ordersCache = Array.isArray(data.orders) ? data.orders : [];
     renderBoard();
     renderStats();
     const now = new Date();
@@ -1010,13 +1129,7 @@ function formatTotal(total){
 }
 
 async function updateStatus(orderNumber, newStatus){
-  try{
-    await fetch(scriptUrl, {
-      method:"POST",
-      headers:{ "Content-Type":"text/plain;charset=utf-8" },
-      body: JSON.stringify({ action:"updateStatus", orderNumber, status:newStatus })
-    });
-  }catch(err){ /* se reintentará en el siguiente refresco */ }
+  await api("updateStatus", { orderNumber, status:newStatus }); // si falla, se verá en el siguiente refresco
   fetchOrders();
 }
 
@@ -1077,7 +1190,8 @@ const DEFAULT_RESTAURANT_CONFIG = {
   phone: "34606690119",
   whatsappEnabled: true,
   testMode: false,
-  adminPassword: "duo2026",
+  adminPassword: "",
+  staffPassword: "",
   menu: DEFAULT_MENU,
   featured: { id:"p26", label:"La pizza de la casa" },
   pause: { active:false, message:"Vamos muy desbordados ahora mismo, no podemos coger más pedidos para llevar. ¡Gracias por tu paciencia!" },
@@ -1093,7 +1207,6 @@ const DEFAULT_RESTAURANT_CONFIG = {
 };
 
 let restaurantConfig = JSON.parse(JSON.stringify(DEFAULT_RESTAURANT_CONFIG));
-let restaurantConfigLoaded = false;
 
 async function fetchRestaurantConfig(){
   if(!scriptUrl) return null;
@@ -1112,6 +1225,7 @@ function mergeRestaurantConfig(base, remote){
   if(remote.whatsappEnabled !== undefined) merged.whatsappEnabled = remote.whatsappEnabled;
   if(remote.testMode !== undefined) merged.testMode = remote.testMode;
   if(remote.adminPassword !== undefined) merged.adminPassword = remote.adminPassword;
+  if(remote.staffPassword !== undefined) merged.staffPassword = remote.staffPassword;
   if(remote.pause !== undefined) merged.pause = remote.pause;
   if(remote.schedule !== undefined) merged.schedule = remote.schedule;
   if(remote.menu !== undefined && remote.menu.length > 0) merged.menu = remote.menu;
@@ -1120,65 +1234,59 @@ function mergeRestaurantConfig(base, remote){
 }
 
 async function saveRestaurantConfigRemote(cfg){
-  if(!scriptUrl) return false;
-  try{
-    await fetch(scriptUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({
-        action: "saveConfig",
-        config: {
-          phone: cfg.phone,
-          whatsappEnabled: cfg.whatsappEnabled,
-          testMode: cfg.testMode,
-          adminPassword: cfg.adminPassword,
-          pause: cfg.pause,
-          schedule: cfg.schedule,
-          menu: cfg.menu,
-          featured: cfg.featured
-        }
-      })
-    });
-    return true;
-  }catch(err){
-    return false;
-  }
+  const r = await api("saveConfig", {
+    config: {
+      phone: cfg.phone,
+      whatsappEnabled: cfg.whatsappEnabled,
+      testMode: cfg.testMode,
+      adminPassword: cfg.adminPassword,
+      staffPassword: cfg.staffPassword,
+      pause: cfg.pause,
+      schedule: cfg.schedule,
+      menu: cfg.menu,
+      featured: cfg.featured
+    }
+  }, adminKey);
+  return r;
 }
 
-async function ensureRestaurantConfigLoaded(){
-  if(restaurantConfigLoaded) return;
-  const remote = await fetchRestaurantConfig();
-  if(remote){
-    restaurantConfig = mergeRestaurantConfig(restaurantConfig, remote);
+// Pide al Apps Script la configuración completa (con las claves). Solo responde con la clave del dueño.
+async function loadAdminConfig(key){
+  const r = await api("adminConfig", {}, key);
+  if(r && r.success){
+    adminKey = key;
+    restaurantConfig = mergeRestaurantConfig(DEFAULT_RESTAURANT_CONFIG, r.config);
   }
-  restaurantConfigLoaded = true;
+  return r;
 }
 
-function openSettingsGate(){
+function showSettingsContent(){
+  document.getElementById("settingsGate").style.display = "none";
+  document.getElementById("settingsContent").style.display = "block";
+  fillSettingsFields();
+}
+
+async function openSettingsGate(){
   document.getElementById("settingsGateError").style.display = "none";
   document.getElementById("settingsGatePassword").value = "";
-
-  ensureRestaurantConfigLoaded().then(()=>{
-    if(restaurantConfig.adminPassword){
-      document.getElementById("settingsGate").style.display = "block";
-      document.getElementById("settingsContent").style.display = "none";
-    } else {
-      document.getElementById("settingsGate").style.display = "none";
-      document.getElementById("settingsContent").style.display = "block";
-      fillSettingsFields();
-    }
-  });
+  document.getElementById("settingsGate").style.display = "none";
+  document.getElementById("settingsContent").style.display = "none";
+  // Si no hay clave de Configuración, el Apps Script deja pasar sin pedirla.
+  const r = await loadAdminConfig("");
+  if(r && r.success) return showSettingsContent();
+  document.getElementById("settingsGate").style.display = "block";
+  setTimeout(()=> document.getElementById("settingsGatePassword").focus(), 50);
 }
 
-document.getElementById("settingsGateSubmit").addEventListener("click", ()=>{
-  const entered = document.getElementById("settingsGatePassword").value;
-  if(entered === restaurantConfig.adminPassword){
-    document.getElementById("settingsGate").style.display = "none";
-    document.getElementById("settingsContent").style.display = "block";
-    fillSettingsFields();
-  } else {
-    document.getElementById("settingsGateError").style.display = "block";
-  }
+document.getElementById("settingsGateSubmit").addEventListener("click", async ()=>{
+  const btn = document.getElementById("settingsGateSubmit");
+  btn.disabled = true;
+  const r = await loadAdminConfig(document.getElementById("settingsGatePassword").value);
+  btn.disabled = false;
+  if(r && r.success) return showSettingsContent();
+  const err = document.getElementById("settingsGateError");
+  err.textContent = r && r.error === "auth" ? "Contraseña incorrecta." : apiErrorMessage(r);
+  err.style.display = "block";
 });
 document.getElementById("settingsGatePassword").addEventListener("keydown", (e)=>{
   if(e.key === "Enter") document.getElementById("settingsGateSubmit").click();
@@ -1186,6 +1294,7 @@ document.getElementById("settingsGatePassword").addEventListener("keydown", (e)=
 
 function fillSettingsFields(){
   document.getElementById("settingsAdminPassword").value = restaurantConfig.adminPassword || "";
+  document.getElementById("settingsStaffPassword").value = restaurantConfig.staffPassword || "";
   document.getElementById("settingsPhone").value = restaurantConfig.phone || "";
   document.getElementById("settingsWhatsappToggle").checked = restaurantConfig.whatsappEnabled;
   document.getElementById("settingsTestModeToggle").checked = restaurantConfig.testMode || false;
@@ -1346,7 +1455,9 @@ document.getElementById("settingsAddDishBtn").addEventListener("click", ()=>{
 
 document.getElementById("settingsSaveBtn").addEventListener("click", async ()=>{
   restaurantConfig.phone = document.getElementById("settingsPhone").value.replace(/[^0-9]/g,"");
+  const oldAdmin = restaurantConfig.adminPassword, oldStaff = restaurantConfig.staffPassword;
   restaurantConfig.adminPassword = document.getElementById("settingsAdminPassword").value;
+  restaurantConfig.staffPassword = document.getElementById("settingsStaffPassword").value.trim();
   restaurantConfig.whatsappEnabled = document.getElementById("settingsWhatsappToggle").checked;
   restaurantConfig.testMode = document.getElementById("settingsTestModeToggle").checked;
   restaurantConfig.pause.active = document.getElementById("settingsPauseToggle").checked;
@@ -1372,14 +1483,23 @@ document.getElementById("settingsSaveBtn").addEventListener("click", async ()=>{
   const saveBtn = document.getElementById("settingsSaveBtn");
   saveBtn.disabled = true;
   saveBtn.textContent = "Guardando...";
-  const saved = await saveRestaurantConfigRemote(restaurantConfig);
+  const r = await saveRestaurantConfigRemote(restaurantConfig);
+  const saved = !!(r && r.success);
   saveBtn.disabled = false;
   saveBtn.textContent = "Guardar cambios";
+
+  if(saved){
+    // Este dispositivo sigue dentro aunque se haya cambiado la clave con la que entró.
+    adminKey = restaurantConfig.adminPassword;
+    if(panelKey === oldAdmin) panelKey = restaurantConfig.adminPassword;
+    else if(panelKey === oldStaff) panelKey = restaurantConfig.staffPassword || restaurantConfig.adminPassword;
+    savePanelKey(panelKey);
+  }
 
   const confirmEl = document.getElementById("settingsSaveConfirm");
   confirmEl.textContent = saved
     ? "✓ Cambios guardados y compartidos con todos los dispositivos (clientes, camareros y este panel)"
-    : "⚠ No se pudo conectar con la hoja. Comprueba la conexión e inténtalo de nuevo.";
+    : "⚠ " + apiErrorMessage(r);
   confirmEl.classList.add("show");
 });
 
@@ -1393,6 +1513,7 @@ const QUICK_PAUSE_MESSAGES = [
 ];
 let pauseFlow = null; // "pause" o "resume"
 let pauseStep = null; // "password", "message" o "resume"
+let pauseKey = null;  // clave de Configuración comprobada para esta pausa
 
 function renderPauseState(){
   const paused = !!(restaurantConfig.pause && restaurantConfig.pause.active);
@@ -1415,10 +1536,7 @@ function renderPauseState(){
 
 async function refreshPauseState(){
   const remote = await fetchRestaurantConfig();
-  if(remote){
-    if(remote.pause !== undefined) restaurantConfig.pause = remote.pause;
-    if(remote.adminPassword !== undefined) restaurantConfig.adminPassword = remote.adminPassword;
-  }
+  if(remote && remote.pause !== undefined) restaurantConfig.pause = remote.pause;
   renderPauseState();
   return !!remote;
 }
@@ -1452,39 +1570,38 @@ function afterPassword(){
 async function openPauseFlow(){
   const btn = document.getElementById("pauseBtn");
   btn.disabled = true;
-  await refreshPauseState(); // estado y contraseña al día, por si se cambiaron en otro dispositivo
+  await refreshPauseState(); // estado al día, por si se cambió en otro dispositivo
+  // Si no hay clave de Configuración, el Apps Script deja pasar sin pedirla.
+  const open = await api("login", {}, "");
   btn.disabled = false;
   pauseFlow = restaurantConfig.pause.active ? "resume" : "pause";
+  pauseKey = null;
   document.getElementById("pausePassword").value = "";
   document.getElementById("pauseOverlay").classList.add("show");
-  if(restaurantConfig.adminPassword) showPauseStep("password");
-  else afterPassword();
+  if(open && open.role === "admin"){ pauseKey = ""; afterPassword(); }
+  else showPauseStep("password");
 }
 
 function closePauseFlow(){
   document.getElementById("pauseOverlay").classList.remove("show");
-  pauseFlow = pauseStep = null;
+  pauseFlow = pauseStep = pauseKey = null;
 }
 
-async function savePause(active, message){
-  try{
-    const res = await fetch(scriptUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ action:"saveConfig", config:{ pause:{ active, message } } })
-    });
-    const data = await res.json();
-    return !!(data && data.success);
-  }catch(err){
-    return false;
-  }
+function savePause(active, message){
+  return api("saveConfig", { config:{ pause:{ active, message } } }, pauseKey);
 }
 
 document.getElementById("pauseNext").addEventListener("click", async ()=>{
   if(pauseStep === "password"){
-    if(document.getElementById("pausePassword").value !== restaurantConfig.adminPassword){
-      return showPauseError("Contraseña incorrecta.");
-    }
+    const entered = document.getElementById("pausePassword").value;
+    const next = document.getElementById("pauseNext");
+    next.disabled = true;
+    const r = await api("login", {}, entered);
+    next.disabled = false;
+    if(!r || (!r.success && r.error !== "auth")) return showPauseError(apiErrorMessage(r));
+    // La clave del personal no sirve para pausar: solo la de Configuración.
+    if(!r.success || r.role !== "admin") return showPauseError("Contraseña incorrecta. Hace falta la clave de Configuración.");
+    pauseKey = entered;
     return afterPassword();
   }
 
@@ -1496,10 +1613,10 @@ document.getElementById("pauseNext").addEventListener("click", async ()=>{
   const label = next.textContent;
   next.disabled = true;
   next.textContent = "Guardando...";
-  const ok = await savePause(active, message);
+  const r = await savePause(active, message);
   next.disabled = false;
   next.textContent = label;
-  if(!ok) return showPauseError("No se pudo conectar con la hoja. Comprueba la conexión e inténtalo de nuevo.");
+  if(!r || !r.success) return showPauseError(apiErrorMessage(r));
 
   restaurantConfig.pause = { active, message };
   renderPauseState();
@@ -1527,12 +1644,12 @@ document.getElementById("statsDateInput").value = toLocalDateKey(new Date());
 statsSelectedDate = toLocalDateKey(new Date());
 
 scriptUrl = loadUrl();
-if(scriptUrl){
-  showBoard();
-  fetchOrders();
-  startPolling();
-} else {
+if(!scriptUrl){
   showSetup();
+} else {
+  const stored = loadPanelKey();
+  // Con clave recordada se entra directo; si no, se intenta sin clave (por si no hay ninguna puesta).
+  enterPanel(stored !== null ? stored : "");
 }
 </script>
 
