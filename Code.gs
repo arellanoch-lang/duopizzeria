@@ -4,7 +4,7 @@
  * Este script hace de "servidor" compartido para todos los dispositivos:
  * - Recibe los pedidos desde la web del cliente y los guarda en la hoja "Pedidos"
  * - Guarda la configuración del restaurante (teléfono, horario, pausa, carta,
- *   contraseña de admin) en la hoja "Configuracion", para que sea la MISMA
+ *   pizza destacada, contraseña de admin) en la hoja "Configuracion", para que sea la MISMA
  *   en todos los móviles/tablets/ordenadores que usen la web o el panel
  * - Reparte el número de pedido de forma centralizada, para que nunca se
  *   dupliquen aunque varios clientes pidan al mismo tiempo desde dispositivos distintos
@@ -94,6 +94,12 @@ function loadConfigObject() {
   if (map.menu !== undefined) {
     try { result.menu = JSON.parse(map.menu); } catch (e) { /* ignorar si está corrupto */ }
   }
+  if (map.featuredId !== undefined || map.featuredLabel !== undefined) {
+    result.featured = {
+      id: String(map.featuredId || ""),
+      label: String(map.featuredLabel || "")
+    };
+  }
   return result;
 }
 
@@ -109,6 +115,10 @@ function saveConfigObject(cfg) {
   }
   if (cfg.schedule !== undefined) upsertConfigRow(sheet, "schedule", JSON.stringify(cfg.schedule));
   if (cfg.menu !== undefined) upsertConfigRow(sheet, "menu", JSON.stringify(cfg.menu));
+  if (cfg.featured !== undefined) {
+    upsertConfigRow(sheet, "featuredId", cfg.featured.id || "");
+    upsertConfigRow(sheet, "featuredLabel", cfg.featured.label || "");
+  }
 }
 
 function getNextOrderNumber() {

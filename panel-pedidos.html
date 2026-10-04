@@ -234,6 +234,17 @@
     font-family: inherit;
   }
   input:focus{ outline:2px solid var(--red); outline-offset:1px; border-color: var(--red); }
+  .settings-select{
+    width:100%;
+    padding: 10px 12px;
+    border: 1.5px solid var(--line);
+    border-radius: var(--radius);
+    font-size:0.95rem;
+    background:#fff;
+    color: var(--ink);
+    font-family: inherit;
+  }
+  .settings-select:focus{ outline:2px solid var(--red); outline-offset:1px; border-color: var(--red); }
 
   .day-row{
     display:flex;
@@ -580,6 +591,19 @@
       <label class="field-label">Horario de pedidos</label>
       <div id="settingsScheduleContainer"></div>
       <div class="field-hint">Deja las horas en blanco en un turno si ese día solo abrís un turno. Desactiva el día si cerráis por completo.</div>
+    </div>
+
+    <div class="settings-card">
+      <div class="field-group">
+        <label class="field-label" for="settingsFeaturedSelect">Pizza destacada</label>
+        <select id="settingsFeaturedSelect" class="settings-select"></select>
+        <div class="field-hint">Aparece en grande al principio de la web, con su botón para añadirla al pedido. Elige "Ninguna" para ocultarla.</div>
+      </div>
+      <div class="field-group" style="margin-bottom:0;">
+        <label class="field-label" for="settingsFeaturedLabel">Texto encima del nombre</label>
+        <input type="text" id="settingsFeaturedLabel" placeholder="La pizza de la casa" maxlength="40">
+        <div class="field-hint">Por ejemplo: "La pizza de la casa", "Pizza del mes" o "Novedad".</div>
+      </div>
     </div>
 
     <div class="settings-card">
@@ -955,6 +979,7 @@ const DEFAULT_RESTAURANT_CONFIG = {
   testMode: false,
   adminPassword: "duo2026",
   menu: DEFAULT_MENU,
+  featured: { id:"p26", label:"La pizza de la casa" },
   pause: { active:false, message:"Vamos muy desbordados ahora mismo, no podemos coger más pedidos para llevar. ¡Gracias por tu paciencia!" },
   schedule: {
     mon:{open:true, shifts:[["13:00","15:30"],["20:00","23:00"]]},
@@ -990,6 +1015,7 @@ function mergeRestaurantConfig(base, remote){
   if(remote.pause !== undefined) merged.pause = remote.pause;
   if(remote.schedule !== undefined) merged.schedule = remote.schedule;
   if(remote.menu !== undefined && remote.menu.length > 0) merged.menu = remote.menu;
+  if(remote.featured !== undefined) merged.featured = remote.featured;
   return merged;
 }
 
@@ -1008,7 +1034,8 @@ async function saveRestaurantConfigRemote(cfg){
           adminPassword: cfg.adminPassword,
           pause: cfg.pause,
           schedule: cfg.schedule,
-          menu: cfg.menu
+          menu: cfg.menu,
+          featured: cfg.featured
         }
       })
     });
@@ -1064,6 +1091,7 @@ function fillSettingsFields(){
   document.getElementById("settingsTestModeToggle").checked = restaurantConfig.testMode || false;
   document.getElementById("settingsPauseToggle").checked = restaurantConfig.pause.active;
   document.getElementById("settingsPauseMessage").value = restaurantConfig.pause.message;
+  document.getElementById("settingsFeaturedLabel").value = restaurantConfig.featured.label || "";
   renderSettingsSchedule();
   renderSettingsMenuList();
   document.getElementById("settingsSaveConfirm").classList.remove("show");
@@ -1144,7 +1172,45 @@ function renderSettingsMenuList(){
       renderSettingsMenuList();
     });
   });
+
+  renderSettingsFeaturedSelect();
 }
+
+// El desplegable se rehace cada vez que cambia la carta, para que nunca
+// ofrezca un plato que ya no existe ni le falte uno recién añadido.
+function renderSettingsFeaturedSelect(){
+  const select = document.getElementById("settingsFeaturedSelect");
+  const currentId = restaurantConfig.featured.id || "";
+  select.innerHTML = "";
+
+  const none = document.createElement("option");
+  none.value = "";
+  none.textContent = "Ninguna (no mostrar)";
+  select.appendChild(none);
+
+  let found = false;
+  restaurantConfig.menu.forEach(group=>{
+    const optgroup = document.createElement("optgroup");
+    optgroup.label = group.cat;
+    group.items.forEach(item=>{
+      const opt = document.createElement("option");
+      opt.value = item.id;
+      opt.textContent = `${item.name} (${item.price.toFixed(2).replace(".",",")}€)`;
+      if(item.id === currentId){ opt.selected = true; found = true; }
+      optgroup.appendChild(opt);
+    });
+    select.appendChild(optgroup);
+  });
+
+  if(!found){
+    select.value = "";
+    restaurantConfig.featured.id = "";
+  }
+}
+
+document.getElementById("settingsFeaturedSelect").addEventListener("change", (e)=>{
+  restaurantConfig.featured.id = e.target.value;
+});
 
 function slugify(text){
   return text.toLowerCase()
@@ -1185,6 +1251,10 @@ document.getElementById("settingsSaveBtn").addEventListener("click", async ()=>{
   restaurantConfig.testMode = document.getElementById("settingsTestModeToggle").checked;
   restaurantConfig.pause.active = document.getElementById("settingsPauseToggle").checked;
   restaurantConfig.pause.message = document.getElementById("settingsPauseMessage").value;
+  restaurantConfig.featured = {
+    id: document.getElementById("settingsFeaturedSelect").value,
+    label: document.getElementById("settingsFeaturedLabel").value.trim()
+  };
 
   DAYS.forEach(day=>{
     const openToggle = document.querySelector(`.settings-day-toggle[data-day="${day.key}"]`);
