@@ -37,7 +37,7 @@
     line-height:1.45;
     min-height:100vh;
   }
-  button, input, select{ font-family:inherit; color:inherit; }
+  button, input, select, textarea{ font-family:inherit; color:inherit; }
   :focus-visible{ outline:3px solid var(--ink); outline-offset:2px; }
   .display{
     font-stretch:62%;
@@ -64,7 +64,11 @@
   .brand{ display:flex; align-items:center; gap:12px; }
   .brand-logo{ height:30px; width:auto; display:block; filter:brightness(0) invert(1); }
   .header-title{ font-size:1.5rem; }
-  .header-right{ display:flex; align-items:center; gap:12px; }
+  .header-right{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .header-right button{ white-space:nowrap; }
+  @media(max-width: 480px){
+    .refresh-status{ flex-basis:100%; order:3; font-size:0.78rem; }
+  }
   .refresh-status{ font-size:0.82rem; color:rgba(255,255,255,.85); }
   .gear-btn{
     background:rgba(255,255,255,.16); border:none; color:#fff;
@@ -360,6 +364,67 @@
   }
   .gate-btn{ width:100%; padding:14px; }
 
+  /* PAUSA RÁPIDA */
+  .pause-btn{
+    display:inline-flex; align-items:center; gap:8px;
+    background:#fff; color:var(--tomato-deep);
+    border:none; border-radius:999px;
+    padding:8px 16px 8px 12px;
+    font-size:0.9rem; font-weight:800; cursor:pointer;
+  }
+  .pause-btn:hover{ background:var(--flour); }
+  .pause-btn svg{ width:16px; height:16px; }
+  .pause-btn.is-paused{ background:var(--basil); color:#fff; }
+  .pause-btn.is-paused:hover{ background:var(--basil-deep); }
+  .pause-banner{
+    max-width:1200px; margin:16px auto 0; padding:0 20px;
+  }
+  .pause-banner-inner{
+    display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+    background:var(--ink); color:#fff;
+    border-radius:16px; padding:14px 18px;
+  }
+  .pause-banner strong{ display:block; font-size:1rem; }
+  .pause-banner span{ font-size:0.9rem; color:#D9D3CB; }
+  .pause-banner button{
+    background:var(--basil); color:#fff; border:none; border-radius:12px;
+    padding:11px 18px; font-size:0.95rem; font-weight:700; cursor:pointer; white-space:nowrap;
+  }
+  .pause-banner button:hover{ background:var(--basil-deep); }
+
+  .modal-overlay{
+    display:none; position:fixed; inset:0; z-index:50;
+    background:rgba(28,26,23,.55);
+    align-items:flex-end; justify-content:center;
+  }
+  .modal-overlay.show{ display:flex; }
+  .modal{
+    background:var(--paper); width:100%; max-width:480px; max-height:90vh; overflow-y:auto;
+    border-radius:24px 24px 0 0; padding:24px 22px 22px;
+  }
+  @media (min-width:600px){
+    .modal-overlay{ align-items:center; }
+    .modal{ border-radius:24px; }
+  }
+  .modal-title{ font-size:2.2rem; margin-bottom:6px; }
+  .modal-desc{ font-size:0.95rem; color:var(--muted); margin-bottom:18px; }
+  .modal textarea{
+    width:100%; min-height:110px; resize:vertical;
+    padding:12px 14px; border:1.5px solid var(--line); border-radius:12px;
+    font-size:1rem; line-height:1.4; background:#fff;
+  }
+  .modal textarea:focus{ outline:none; border-color:var(--ink); }
+  .quick-msgs{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .quick-msg{
+    background:var(--flour); border:none; border-radius:12px;
+    padding:9px 12px; font-size:0.85rem; cursor:pointer; text-align:left;
+  }
+  .quick-msg:hover{ background:var(--line); }
+  .modal-actions{ display:flex; gap:10px; margin-top:20px; }
+  .modal-actions .save-btn{ flex:1; }
+  .save-btn.resume{ background:var(--basil); }
+  .save-btn.resume:hover{ background:var(--basil-deep); }
+
   @media (prefers-reduced-motion: reduce){
     *, *::before, *::after{ transition:none !important; animation:none !important; }
   }
@@ -374,6 +439,10 @@
   </div>
   <div class="header-right">
     <span class="refresh-status" id="refreshStatus"></span>
+    <button class="pause-btn" id="pauseBtn" style="display:none;">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" id="pauseBtnIcon"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+      <span id="pauseBtnLabel">Pausar pedidos</span>
+    </button>
     <button class="gear-btn" id="changeUrlBtn" style="display:none;">Cambiar hoja</button>
   </div>
 </header>
@@ -382,6 +451,46 @@
   <button class="view-tab active" id="viewTabPedidos">Pedidos</button>
   <button class="view-tab" id="viewTabStats">Estadísticas</button>
   <button class="view-tab" id="viewTabSettings">Configuración</button>
+</div>
+
+<div class="pause-banner" id="pauseBanner" hidden>
+  <div class="pause-banner-inner">
+    <div>
+      <strong>Pedidos en pausa</strong>
+      <span id="pauseBannerMsg"></span>
+    </div>
+    <button id="pauseBannerResume">Reanudar pedidos</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="pauseOverlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pauseModalTitle">
+    <h2 class="modal-title display" id="pauseModalTitle">Pausar pedidos</h2>
+
+    <div id="pauseStepPassword">
+      <div class="modal-desc">Introduce la contraseña de Configuración.</div>
+      <label class="field-label" for="pausePassword">Contraseña</label>
+      <input type="password" id="pausePassword" placeholder="••••••" autocomplete="current-password">
+    </div>
+
+    <div id="pauseStepMessage" hidden>
+      <div class="modal-desc">Los clientes verán este mensaje en la web y no podrán hacer pedidos hasta que la reanudes.</div>
+      <label class="field-label" for="pauseMessageInput">Mensaje para los clientes</label>
+      <textarea id="pauseMessageInput" maxlength="200"></textarea>
+      <div class="quick-msgs" id="pauseQuickMsgs"></div>
+    </div>
+
+    <div id="pauseStepResume" hidden>
+      <div class="modal-desc">Los clientes podrán volver a hacer pedidos en cuanto confirmes, siempre que estéis dentro del horario.</div>
+    </div>
+
+    <div id="pauseError" class="gate-error" role="alert"></div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" id="pauseCancel">Cancelar</button>
+      <button class="save-btn" id="pauseNext">Continuar</button>
+    </div>
+  </div>
 </div>
 
 <div class="setup-screen" id="setupScreen">
@@ -576,6 +685,7 @@ const STORAGE_KEY = "burgerAppPanelUrl_v1";
 let scriptUrl = null;
 let ordersCache = [];
 let pollTimer = null;
+let pausePollTimer = null;
 
 function loadUrl(){
   try{
@@ -592,12 +702,16 @@ function showBoard(){
   document.getElementById("setupScreen").style.display = "none";
   document.getElementById("board").classList.add("show");
   document.getElementById("changeUrlBtn").style.display = "inline-block";
+  document.getElementById("pauseBtn").style.display = "inline-flex";
   document.getElementById("viewTabs").style.display = "flex";
+  refreshPauseState();
 }
 function showSetup(){
   document.getElementById("setupScreen").style.display = "block";
   document.getElementById("board").classList.remove("show");
   document.getElementById("changeUrlBtn").style.display = "none";
+  document.getElementById("pauseBtn").style.display = "none";
+  document.getElementById("pauseBanner").hidden = true;
   document.getElementById("viewTabs").style.display = "none";
 }
 
@@ -620,9 +734,11 @@ document.getElementById("changeUrlBtn").addEventListener("click", ()=>{
 function startPolling(){
   stopPolling();
   pollTimer = setInterval(fetchOrders, 15000);
+  pausePollTimer = setInterval(refreshPauseState, 60000);
 }
 function stopPolling(){
   if(pollTimer) clearInterval(pollTimer);
+  if(pausePollTimer) clearInterval(pausePollTimer);
 }
 
 async function fetchOrders(){
@@ -1265,6 +1381,145 @@ document.getElementById("settingsSaveBtn").addEventListener("click", async ()=>{
     ? "✓ Cambios guardados y compartidos con todos los dispositivos (clientes, camareros y este panel)"
     : "⚠ No se pudo conectar con la hoja. Comprueba la conexión e inténtalo de nuevo.";
   confirmEl.classList.add("show");
+});
+
+/* ---------- PAUSA RÁPIDA (botón de la cabecera) ----------
+   Pide la contraseña de Configuración y después el mensaje para los clientes.
+   Solo guarda la pausa: el resto de la configuración de la hoja no se toca. */
+const QUICK_PAUSE_MESSAGES = [
+  "Vamos muy desbordados ahora mismo, no podemos coger más pedidos. ¡Gracias por tu paciencia!",
+  "Se nos ha acabado la masa por hoy. ¡Gracias y hasta pronto!",
+  "Estamos cerrados por una incidencia. Volvemos en un rato.",
+];
+let pauseFlow = null; // "pause" o "resume"
+let pauseStep = null; // "password", "message" o "resume"
+
+function renderPauseState(){
+  const paused = !!(restaurantConfig.pause && restaurantConfig.pause.active);
+  const btn = document.getElementById("pauseBtn");
+  btn.classList.toggle("is-paused", paused);
+  document.getElementById("pauseBtnLabel").textContent = paused ? "Reanudar pedidos" : "Pausar pedidos";
+  document.getElementById("pauseBtnIcon").innerHTML = paused
+    ? '<path d="M8 5.5v13a1 1 0 0 0 1.5.9l10-6.5a1 1 0 0 0 0-1.7l-10-6.5A1 1 0 0 0 8 5.5Z"/>'
+    : '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>';
+  const banner = document.getElementById("pauseBanner");
+  banner.hidden = !paused;
+  document.getElementById("pauseBannerMsg").textContent = paused ? `Los clientes ven: “${restaurantConfig.pause.message || ""}”` : "";
+  // Si Configuración está abierta, el interruptor de pausa refleja el estado real
+  // para que "Guardar cambios" no deshaga una pausa hecha desde aquí.
+  const toggle = document.getElementById("settingsPauseToggle");
+  if(toggle) toggle.checked = paused;
+  const msgInput = document.getElementById("settingsPauseMessage");
+  if(msgInput && document.activeElement !== msgInput) msgInput.value = restaurantConfig.pause.message || "";
+}
+
+async function refreshPauseState(){
+  const remote = await fetchRestaurantConfig();
+  if(remote){
+    if(remote.pause !== undefined) restaurantConfig.pause = remote.pause;
+    if(remote.adminPassword !== undefined) restaurantConfig.adminPassword = remote.adminPassword;
+  }
+  renderPauseState();
+  return !!remote;
+}
+
+function showPauseStep(step){
+  pauseStep = step;
+  document.getElementById("pauseStepPassword").hidden = step !== "password";
+  document.getElementById("pauseStepMessage").hidden = step !== "message";
+  document.getElementById("pauseStepResume").hidden = step !== "resume";
+  document.getElementById("pauseError").style.display = "none";
+  const next = document.getElementById("pauseNext");
+  next.classList.toggle("resume", step === "resume");
+  next.textContent = step === "password" ? "Continuar" : step === "message" ? "Pausar pedidos" : "Reanudar pedidos";
+  document.getElementById("pauseModalTitle").textContent = pauseFlow === "resume" ? "Reanudar pedidos" : "Pausar pedidos";
+  const focusId = step === "password" ? "pausePassword" : step === "message" ? "pauseMessageInput" : "pauseNext";
+  setTimeout(()=> document.getElementById(focusId).focus(), 50);
+}
+
+function showPauseError(msg){
+  const el = document.getElementById("pauseError");
+  el.textContent = msg;
+  el.style.display = "block";
+}
+
+function afterPassword(){
+  if(pauseFlow === "resume") return showPauseStep("resume");
+  document.getElementById("pauseMessageInput").value = restaurantConfig.pause.message || QUICK_PAUSE_MESSAGES[0];
+  showPauseStep("message");
+}
+
+async function openPauseFlow(){
+  const btn = document.getElementById("pauseBtn");
+  btn.disabled = true;
+  await refreshPauseState(); // estado y contraseña al día, por si se cambiaron en otro dispositivo
+  btn.disabled = false;
+  pauseFlow = restaurantConfig.pause.active ? "resume" : "pause";
+  document.getElementById("pausePassword").value = "";
+  document.getElementById("pauseOverlay").classList.add("show");
+  if(restaurantConfig.adminPassword) showPauseStep("password");
+  else afterPassword();
+}
+
+function closePauseFlow(){
+  document.getElementById("pauseOverlay").classList.remove("show");
+  pauseFlow = pauseStep = null;
+}
+
+async function savePause(active, message){
+  try{
+    const res = await fetch(scriptUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action:"saveConfig", config:{ pause:{ active, message } } })
+    });
+    const data = await res.json();
+    return !!(data && data.success);
+  }catch(err){
+    return false;
+  }
+}
+
+document.getElementById("pauseNext").addEventListener("click", async ()=>{
+  if(pauseStep === "password"){
+    if(document.getElementById("pausePassword").value !== restaurantConfig.adminPassword){
+      return showPauseError("Contraseña incorrecta.");
+    }
+    return afterPassword();
+  }
+
+  const active = pauseStep === "message";
+  const message = active ? document.getElementById("pauseMessageInput").value.trim() : (restaurantConfig.pause.message || "");
+  if(active && !message) return showPauseError("Escribe el mensaje que verán los clientes.");
+
+  const next = document.getElementById("pauseNext");
+  const label = next.textContent;
+  next.disabled = true;
+  next.textContent = "Guardando...";
+  const ok = await savePause(active, message);
+  next.disabled = false;
+  next.textContent = label;
+  if(!ok) return showPauseError("No se pudo conectar con la hoja. Comprueba la conexión e inténtalo de nuevo.");
+
+  restaurantConfig.pause = { active, message };
+  renderPauseState();
+  closePauseFlow();
+});
+
+document.getElementById("pauseCancel").addEventListener("click", closePauseFlow);
+document.getElementById("pauseOverlay").addEventListener("click", e=>{ if(e.target.id === "pauseOverlay") closePauseFlow(); });
+document.getElementById("pausePassword").addEventListener("keydown", e=>{ if(e.key === "Enter") document.getElementById("pauseNext").click(); });
+document.addEventListener("keydown", e=>{ if(e.key === "Escape" && pauseStep) closePauseFlow(); });
+document.getElementById("pauseBtn").addEventListener("click", openPauseFlow);
+document.getElementById("pauseBannerResume").addEventListener("click", openPauseFlow);
+
+QUICK_PAUSE_MESSAGES.forEach(msg=>{
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "quick-msg";
+  b.textContent = msg;
+  b.addEventListener("click", ()=>{ document.getElementById("pauseMessageInput").value = msg; });
+  document.getElementById("pauseQuickMsgs").appendChild(b);
 });
 
 /* ---------- INIT ---------- */
