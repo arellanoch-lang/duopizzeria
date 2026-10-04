@@ -1,0 +1,1231 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel de pedidos — Dúo Pizzería</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Montserrat:wght@700;800;900&display=swap');
+  :root{
+    --paper:#FFFFFF;
+    --paper-dim:#F4F4F4;
+    --ink:#2B2621;
+    --ink-soft:#6b6259;
+    --red:#B8402F;
+    --red-dark:#8f2f22;
+    --olive:#6B7256;
+    --line:#DDDDDD;
+    --radius:2px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background: var(--paper);
+    color: var(--ink);
+    font-family: Arial, Helvetica, sans-serif;
+    min-height:100vh;
+  }
+  .display{
+    font-family: 'Alfa Slab One', Georgia, serif;
+    font-weight:400;
+    text-transform: uppercase;
+    letter-spacing:0.01em;
+  }
+
+  header{
+    background: var(--ink);
+    color: var(--paper);
+    padding: 18px 20px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:12px;
+    flex-wrap:wrap;
+    position:sticky;
+    top:0;
+    z-index:10;
+  }
+  .header-title{ font-size:1.3rem; text-transform:uppercase; letter-spacing:0.03em; }
+  .header-right{ display:flex; align-items:center; gap:14px; }
+  .refresh-status{ font-size:0.75rem; color:#c9c2b8; }
+  .gear-btn{
+    background:none; border:1.5px solid #55504a; color:var(--paper);
+    padding:7px 12px; border-radius:var(--radius); font-size:0.8rem; cursor:pointer;
+  }
+
+  /* SETUP SCREEN */
+  .setup-screen{
+    max-width:520px;
+    margin: 60px auto;
+    padding: 0 20px;
+  }
+  .setup-card{
+    background:#fff;
+    border:1.5px solid var(--line);
+    border-radius:6px;
+    padding:28px 24px;
+  }
+  .setup-title{ font-size:1.2rem; margin-bottom:8px; }
+  .setup-desc{ font-size:0.88rem; color:var(--ink-soft); margin-bottom:20px; line-height:1.5; }
+  .field-label{
+    display:block; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em;
+    font-weight:700; margin-bottom:8px;
+  }
+  input[type="text"]{
+    width:100%; padding:11px 12px; border:1.5px solid var(--line);
+    border-radius:var(--radius); font-size:0.9rem; font-family:inherit;
+  }
+  input:focus{ outline:2px solid var(--red); outline-offset:1px; border-color:var(--red); }
+  .btn-primary{
+    background: var(--ink); color:#fff; border:none; padding:12px 20px;
+    font-weight:700; text-transform:uppercase; letter-spacing:0.04em; font-size:0.85rem;
+    border-radius:var(--radius); cursor:pointer; margin-top:16px; width:100%;
+  }
+  .setup-hint{ font-size:0.78rem; color:var(--ink-soft); margin-top:14px; line-height:1.5; }
+
+  /* BOARD */
+  .board{
+    display:none;
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .board.show{ display:block; }
+  .columns{
+    display:grid;
+    grid-template-columns: 1fr;
+    gap:16px;
+  }
+  @media(min-width: 800px){
+    .columns{ grid-template-columns: repeat(3, 1fr); }
+  }
+  .column{
+    background: var(--paper-dim);
+    border: 1px solid var(--line);
+    border-radius:6px;
+    padding: 14px;
+    min-height: 120px;
+  }
+  .view-tabs{
+    display:flex;
+    gap:6px;
+    padding: 14px 20px 0;
+    max-width:1200px;
+    margin:0 auto;
+  }
+  .view-tab{
+    font-family: 'Alfa Slab One', Georgia, serif;
+    font-weight:400;
+    text-transform:uppercase;
+    font-size:0.85rem;
+    letter-spacing:0.01em;
+    padding:9px 16px;
+    background: var(--paper-dim);
+    color: transparent;
+    -webkit-text-stroke: 1px var(--ink-soft);
+    border:1.5px solid var(--line);
+    border-radius:20px;
+    cursor:pointer;
+  }
+  .view-tab.active{
+    background: var(--ink);
+    color: transparent;
+    -webkit-text-stroke: 1px var(--paper);
+    border-color: var(--ink);
+  }
+  .stats-view{ display:none; padding: 20px; max-width:1200px; margin:0 auto; }
+  .stats-view.show{ display:block; }
+  .board.hide{ display:none !important; }
+
+  .stats-controls{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .date-input{
+    padding:8px 10px;
+    border:1.5px solid var(--line);
+    border-radius:var(--radius);
+    font-size:0.82rem;
+    font-family: Arial, Helvetica, sans-serif;
+    background:#fff;
+    color: var(--ink);
+  }
+  .stats-range-label{
+    font-size:0.78rem;
+    color: var(--ink-soft);
+    margin-bottom:12px;
+  }
+
+  .stats-bar{
+    background: var(--paper-dim);
+    border: 1px solid var(--line);
+    border-radius:6px;
+    padding: 16px;
+    margin-bottom:18px;
+  }
+  .stats-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:14px;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .stats-title{ font-size:1.05rem; }
+  .stats-range-toggle{ display:flex; gap:6px; }
+  .range-btn{
+    font-size:0.75rem;
+    font-weight:700;
+    text-transform:uppercase;
+    padding:6px 12px;
+    border:1.5px solid var(--line);
+    background:#fff;
+    color:var(--ink-soft);
+    border-radius:20px;
+    cursor:pointer;
+  }
+  .range-btn.active{ background: var(--ink); color:#fff; border-color:var(--ink); }
+  .stats-grid{
+    display:grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap:10px;
+  }
+  @media(min-width: 700px){
+    .stats-grid{ grid-template-columns: repeat(4, 1fr); }
+    .stat-box-wide{ grid-column: span 2; }
+  }
+  .stat-box{
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:12px;
+    text-align:center;
+  }
+  .stat-value{
+    font-family:'Montserrat', Helvetica, Arial, sans-serif;
+    font-weight:900;
+    font-size:1.4rem;
+    color: var(--ink);
+  }
+  .stat-label{
+    font-size:0.68rem;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+    color: var(--ink-soft);
+    margin-top:4px;
+  }
+
+  /* ---------- CONFIGURACIÓN ---------- */
+  .settings-view{ display:none; padding: 20px; max-width:720px; margin:0 auto; }
+  .settings-view.show{ display:block; }
+  .settings-card{
+    background: var(--paper-dim);
+    border: 1px solid var(--line);
+    border-radius:6px;
+    padding: 20px;
+    margin-bottom:18px;
+  }
+  .field-group{ margin-bottom:22px; }
+  .field-hint{ font-size:0.78rem; color:var(--ink-soft); margin-top:6px; line-height:1.4; }
+  input[type="text"], input[type="tel"], input[type="time"], input[type="password"]{
+    width:100%;
+    padding: 10px 12px;
+    border: 1.5px solid var(--line);
+    border-radius: var(--radius);
+    font-size:0.95rem;
+    background:#fff;
+    color: var(--ink);
+    font-family: inherit;
+  }
+  input:focus{ outline:2px solid var(--red); outline-offset:1px; border-color: var(--red); }
+
+  .day-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+    flex-wrap:wrap;
+  }
+  .day-name{ width:80px; font-size:0.85rem; font-weight:600; flex-shrink:0; }
+  .shift-inputs{ display:flex; align-items:center; gap:6px; font-size:0.85rem; }
+  .shift-inputs input{ width:100px; padding:6px 8px; font-size:0.85rem; }
+  .shift-sep{ color: var(--ink-soft); font-size:0.8rem; }
+
+  .switch{ position:relative; width:46px; height:26px; flex-shrink:0; }
+  .switch input{ opacity:0; width:0; height:0; }
+  .slider{
+    position:absolute; cursor:pointer; inset:0;
+    background: var(--line);
+    border-radius:26px;
+    transition:0.2s;
+  }
+  .slider:before{
+    content:"";
+    position:absolute;
+    height:20px; width:20px;
+    left:3px; bottom:3px;
+    background:#fff;
+    border-radius:50%;
+    transition:0.2s;
+  }
+  .switch input:checked + .slider{ background: var(--red); }
+  .switch input:checked + .slider:before{ transform: translateX(20px); }
+
+  .pause-row{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 14px;
+    background: #fff;
+    border-radius: var(--radius);
+    margin-bottom:14px;
+  }
+  .pause-label{ font-weight:700; font-size:0.9rem; }
+  .pause-desc{ font-size:0.78rem; color:var(--ink-soft); margin-top:2px; }
+
+  .settings-actions{ display:flex; gap:10px; margin-top:10px; }
+  .btn-secondary{
+    background: none;
+    border: 1.5px solid var(--line);
+    color: var(--ink-soft);
+    padding:13px 18px;
+    font-size:0.85rem;
+    border-radius: var(--radius);
+    cursor:pointer;
+  }
+  .menu-list-row{
+    display:flex; justify-content:space-between; align-items:center; gap:10px;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--line);
+    font-size:0.82rem;
+    background:#fff;
+  }
+  .menu-list-row:last-child{ border-bottom:none; }
+  .menu-list-cat{
+    font-size:0.68rem; text-transform:uppercase; letter-spacing:0.06em;
+    color: var(--red); font-weight:700;
+    padding: 6px 12px 2px;
+    background:var(--paper-dim);
+  }
+  .menu-list-name{ font-weight:600; }
+  .menu-list-price{ font-family:Arial, Helvetica, sans-serif; color:var(--ink-soft); flex-shrink:0; }
+  .remove-dish-btn{
+    background:none; border:none; color:var(--red); font-size:1rem; cursor:pointer;
+    padding:2px 6px; flex-shrink:0;
+  }
+  .save-confirm{
+    display:none;
+    font-size:0.8rem;
+    color: var(--olive);
+    font-weight:700;
+    margin-top:12px;
+  }
+  .save-confirm.show{ display:block; }
+  .settings-gate{ max-width:360px; margin: 40px auto; text-align:center; }
+
+  .column-title{
+    font-family: 'Alfa Slab One', Georgia, serif;
+    font-weight:400;
+    font-size:1.15rem;
+    text-transform:uppercase;
+    letter-spacing:0.01em;
+    color: transparent;
+    -webkit-text-stroke: 1px var(--ink);
+    text-stroke: 1px var(--ink);
+    margin-bottom:12px;
+    padding-bottom:8px;
+    border-bottom: 2px solid var(--ink);
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .column-count{
+    background: var(--ink);
+    color:#fff;
+    -webkit-text-stroke: 0;
+    text-stroke: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    border-radius:20px;
+    padding:1px 8px;
+    font-size:0.72rem;
+  }
+  .empty-col{
+    font-size:0.82rem;
+    color: var(--ink-soft);
+    text-align:center;
+    padding: 20px 10px;
+  }
+
+  .order-card{
+    background:#fff;
+    border:1.5px solid var(--line);
+    border-left: 4px solid var(--ink-soft);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .order-card.pendiente{ border-left-color: var(--red); }
+  .order-card.preparacion{ border-left-color: #C08A28; }
+  .order-card.listo{ border-left-color: var(--olive); }
+
+  .order-top{
+    display:flex; justify-content:space-between; align-items:flex-start; gap:8px;
+    margin-bottom:6px;
+  }
+  .order-number{ font-family: Arial, Helvetica, sans-serif; font-weight:700; font-size:0.95rem; }
+  .order-time{ font-size:0.72rem; color:var(--ink-soft); }
+  .order-type-tag{
+    display:inline-block;
+    font-size:0.68rem;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+    font-weight:700;
+    padding:3px 8px;
+    border-radius:20px;
+    margin-bottom:6px;
+  }
+  .order-type-tag.tag-domicilio{
+    background: #FCE8E4;
+    color: var(--red-dark);
+  }
+  .order-type-tag.tag-recoger{
+    background: #E8EDE2;
+    color: #4A5138;
+  }
+  .order-type-tag.tag-mesa{
+    background: #EAE3F5;
+    color: #55408F;
+  }
+  .order-name{
+    font-family: 'Montserrat', Helvetica, Arial, sans-serif;
+    font-weight:900;
+    text-transform: uppercase;
+    letter-spacing:0.01em;
+    font-size:0.92rem;
+  }
+  .order-detail{ font-size:0.8rem; color:var(--ink-soft); margin-top:2px; line-height:1.4; }
+  .order-items{ font-size:0.82rem; margin-top:8px; white-space:pre-line; line-height:1.5; }
+  .order-total{ font-family: Arial, Helvetica, sans-serif; font-weight:700; margin-top:8px; font-size:0.9rem; }
+  .order-actions{ display:flex; gap:6px; margin-top:10px; }
+  .action-btn{
+    flex:1;
+    padding: 8px;
+    font-size:0.75rem;
+    font-weight:700;
+    text-transform:uppercase;
+    border:1.5px solid var(--ink);
+    background:#fff;
+    color:var(--ink);
+    border-radius:var(--radius);
+    cursor:pointer;
+  }
+  .action-btn.primary{ background:var(--ink); color:#fff; }
+  .action-btn.subtle{ border-color:var(--line); color:var(--ink-soft); }
+
+  .loading-msg{ text-align:center; padding:40px; color:var(--ink-soft); font-size:0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-title display">Panel de pedidos</div>
+  <div class="header-right">
+    <span class="refresh-status" id="refreshStatus"></span>
+    <button class="gear-btn" id="changeUrlBtn" style="display:none;">Cambiar hoja</button>
+  </div>
+</header>
+
+<div class="view-tabs" id="viewTabs" style="display:none;">
+  <button class="view-tab active" id="viewTabPedidos">Pedidos</button>
+  <button class="view-tab" id="viewTabStats">Estadísticas</button>
+  <button class="view-tab" id="viewTabSettings">Configuración</button>
+</div>
+
+<div class="setup-screen" id="setupScreen">
+  <div class="setup-card">
+    <div class="setup-title display">Conectar con Google Sheets</div>
+    <div class="setup-desc">Pega aquí la URL de la aplicación web que obtuviste al implementar el script en Google Apps Script.</div>
+    <label class="field-label">URL del script</label>
+    <input type="text" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/AKfycb.../exec">
+    <button class="btn-primary" id="connectBtn">Conectar</button>
+    <div class="setup-hint">Esta URL se guarda solo en este navegador. Si abres el panel desde otro dispositivo, tendrás que pegarla de nuevo.</div>
+  </div>
+</div>
+
+<div class="board" id="board">
+  <div class="columns">
+    <div class="column">
+      <div class="column-title">Pendiente <span class="column-count" id="countPendiente">0</span></div>
+      <div id="colPendiente"></div>
+    </div>
+    <div class="column">
+      <div class="column-title">En preparación <span class="column-count" id="countPreparacion">0</span></div>
+      <div id="colPreparacion"></div>
+    </div>
+    <div class="column">
+      <div class="column-title">Listo <span class="column-count" id="countListo">0</span></div>
+      <div id="colListo"></div>
+    </div>
+  </div>
+</div>
+
+<div class="stats-view" id="statsView">
+  <div class="stats-bar" id="statsBar">
+    <div class="stats-header">
+      <span class="stats-title display">Resumen</span>
+      <div class="stats-controls">
+        <input type="date" id="statsDateInput" class="date-input">
+        <button class="range-btn" id="statsGlobalBtn">Ver global</button>
+      </div>
+    </div>
+    <div class="stats-range-label" id="statsRangeLabel">Mostrando: hoy</div>
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-value" id="statOrders">0</div>
+        <div class="stat-label">Pedidos</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" id="statRevenue">0,00 €</div>
+        <div class="stat-label">Facturación</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" id="statUnits">0</div>
+        <div class="stat-label">Platos vendidos</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" id="statAvgTime">—</div>
+        <div class="stat-label">Tiempo medio hasta "Listo"</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" id="statDelivery">0</div>
+        <div class="stat-label">🚗 Domicilio</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" id="statPickup">0</div>
+        <div class="stat-label">🏠 Recoger</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" id="statTable">0</div>
+        <div class="stat-label">🍽 Mesa</div>
+      </div>
+      <div class="stat-box stat-box-wide">
+        <div class="stat-value" id="statTopDish" style="font-size:1rem;">—</div>
+        <div class="stat-label">Plato más pedido</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="settings-view" id="settingsView">
+
+  <div id="settingsGate" class="settings-gate">
+    <div class="stats-title display" style="font-size:1.2rem; margin-bottom:10px;">Acceso restringido</div>
+    <div style="font-size:0.85rem; color:var(--ink-soft); margin-bottom:18px;">Esta sección es solo para el dueño del restaurante.</div>
+    <div class="field-group" style="text-align:left;">
+      <label class="field-label">Contraseña</label>
+      <input type="password" id="settingsGatePassword" placeholder="••••••">
+    </div>
+    <div id="settingsGateError" style="display:none; background:#FCE8E4; border-left:4px solid var(--red); padding:10px 12px; font-size:0.82rem; color:var(--red-dark); margin-bottom:14px; border-radius:var(--radius); text-align:left;">Contraseña incorrecta.</div>
+    <button class="range-btn active" id="settingsGateSubmit" style="width:100%; padding:12px;">Entrar</button>
+  </div>
+
+  <div id="settingsContent" style="display:none;">
+    <div class="settings-card">
+      <div class="field-group">
+        <label class="field-label">Contraseña de acceso a esta sección</label>
+        <input type="password" id="settingsAdminPassword" placeholder="Déjalo vacío para no pedir contraseña">
+        <div class="field-hint">Si la rellenas, la próxima vez que alguien entre a Configuración tendrá que introducirla.</div>
+      </div>
+      <div class="field-group" style="margin-bottom:0;">
+        <label class="field-label">Número de WhatsApp del restaurante</label>
+        <input type="tel" id="settingsPhone" placeholder="Ej: 34606690119">
+        <div class="field-hint">Con prefijo de país, sin espacios ni signo +. Ejemplo: 34606690119</div>
+      </div>
+    </div>
+
+    <div class="settings-card">
+      <div class="pause-row">
+        <div>
+          <div class="pause-label">Recibir también aviso por WhatsApp</div>
+          <div class="pause-desc">Además de quedar registrado, cada pedido abrirá un WhatsApp con el número de arriba</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="settingsWhatsappToggle">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="pause-row" style="margin-bottom:0;">
+        <div>
+          <div class="pause-label">Modo prueba: ignorar horario</div>
+          <div class="pause-desc">La web se mostrará siempre "abierta". Recuerda desactivarlo con clientes reales.</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="settingsTestModeToggle">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="settings-card">
+      <div class="pause-row">
+        <div>
+          <div class="pause-label">Pausar pedidos ahora</div>
+          <div class="pause-desc">Actívalo si vais desbordados o se acaba algún producto, aunque sea horario de apertura</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="settingsPauseToggle">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <label class="field-label">Mensaje al cliente cuando está pausado</label>
+      <input type="text" id="settingsPauseMessage" placeholder="Ej: Vamos muy desbordados, no podemos coger más pedidos ahora mismo">
+    </div>
+
+    <div class="settings-card">
+      <label class="field-label">Horario de pedidos</label>
+      <div id="settingsScheduleContainer"></div>
+      <div class="field-hint">Deja las horas en blanco en un turno si ese día solo abrís un turno. Desactiva el día si cerráis por completo.</div>
+    </div>
+
+    <div class="settings-card">
+      <label class="field-label">Carta (platos actuales)</label>
+      <div id="settingsMenuList" style="border:1.5px solid var(--line); border-radius:var(--radius); max-height:260px; overflow-y:auto; background:#fff;"></div>
+
+      <div style="margin-top:14px; padding:14px; background:#fff; border:1px solid var(--line); border-radius:var(--radius);">
+        <label class="field-label">Añadir plato nuevo</label>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <input type="text" id="settingsNewDishCategory" placeholder="Categoría (ej: Pizzas, Postres...)" list="settingsCategoryOptions">
+          <datalist id="settingsCategoryOptions"></datalist>
+          <input type="text" id="settingsNewDishName" placeholder="Nombre del plato">
+          <input type="text" id="settingsNewDishDesc" placeholder="Ingredientes / descripción (opcional)">
+          <input type="text" id="settingsNewDishPrice" placeholder="Precio (ej: 12,50)" inputmode="decimal">
+          <button class="btn-secondary" id="settingsAddDishBtn" style="width:100%; color:var(--ink); border-color:var(--ink);">+ Añadir a la carta</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-actions">
+      <button class="range-btn active" id="settingsSaveBtn" style="flex:1; padding:13px;">Guardar cambios</button>
+    </div>
+    <div class="save-confirm" id="settingsSaveConfirm">✓ Cambios guardados</div>
+  </div>
+</div>
+
+<script>
+/* Si rellenas esto con la misma URL que en index.html, el panel se conecta
+   solo al abrirlo en un dispositivo nuevo, sin tener que pegarla a mano. */
+const SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby29zE7Pk4KZaNWdQsKBQIWAeKPy9DnQXVzUV2Anvop-8Yz_YPgwWy60xsWlxHcitXnZA/exec";
+
+const STORAGE_KEY = "burgerAppPanelUrl_v1";
+let scriptUrl = null;
+let ordersCache = [];
+let pollTimer = null;
+
+function loadUrl(){
+  try{
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if(stored) return stored;
+  }catch(e){ /* localStorage no disponible */ }
+  return SHEET_SCRIPT_URL || null;
+}
+function saveUrl(url){
+  try{ localStorage.setItem(STORAGE_KEY, url); }catch(e){ /* solo esta sesión */ }
+}
+
+function showBoard(){
+  document.getElementById("setupScreen").style.display = "none";
+  document.getElementById("board").classList.add("show");
+  document.getElementById("changeUrlBtn").style.display = "inline-block";
+  document.getElementById("viewTabs").style.display = "flex";
+}
+function showSetup(){
+  document.getElementById("setupScreen").style.display = "block";
+  document.getElementById("board").classList.remove("show");
+  document.getElementById("changeUrlBtn").style.display = "none";
+  document.getElementById("viewTabs").style.display = "none";
+}
+
+document.getElementById("connectBtn").addEventListener("click", ()=>{
+  const url = document.getElementById("scriptUrlInput").value.trim();
+  if(!url) return;
+  scriptUrl = url;
+  saveUrl(url);
+  showBoard();
+  fetchOrders();
+  startPolling();
+});
+
+document.getElementById("changeUrlBtn").addEventListener("click", ()=>{
+  stopPolling();
+  document.getElementById("scriptUrlInput").value = scriptUrl || "";
+  showSetup();
+});
+
+function startPolling(){
+  stopPolling();
+  pollTimer = setInterval(fetchOrders, 15000);
+}
+function stopPolling(){
+  if(pollTimer) clearInterval(pollTimer);
+}
+
+async function fetchOrders(){
+  const statusEl = document.getElementById("refreshStatus");
+  try{
+    statusEl.textContent = "Actualizando…";
+    const res = await fetch(scriptUrl, { method:"GET" });
+    const data = await res.json();
+    ordersCache = Array.isArray(data) ? data : [];
+    renderBoard();
+    renderStats();
+    const now = new Date();
+    statusEl.textContent = "Actualizado " + now.toLocaleTimeString("es-ES", {hour:"2-digit", minute:"2-digit"});
+  }catch(err){
+    statusEl.textContent = "Error al conectar con la hoja";
+  }
+}
+
+function statusToKey(status){
+  const s = (status||"").toLowerCase();
+  if(s.includes("preparaci")) return "Preparacion";
+  if(s.includes("listo")) return "Listo";
+  return "Pendiente";
+}
+
+function nextStatus(current){
+  const key = statusToKey(current);
+  if(key === "Pendiente") return "En preparación";
+  if(key === "Preparacion") return "Listo";
+  return "Entregado";
+}
+
+function renderBoard(){
+  const cols = { Pendiente:[], Preparacion:[], Listo:[] };
+  ordersCache.forEach(o=>{
+    const key = statusToKey(o.status);
+    if(key === "Entregado") return; // ya no se muestra en el tablero activo
+    if(cols[key]) cols[key].push(o);
+  });
+
+  ["Pendiente","Preparacion","Listo"].forEach(key=>{
+    document.getElementById("count"+key).textContent = cols[key].length;
+    const container = document.getElementById("col"+key);
+    container.innerHTML = "";
+    if(cols[key].length === 0){
+      container.innerHTML = `<div class="empty-col">Sin pedidos</div>`;
+      return;
+    }
+    cols[key]
+      .sort((a,b)=> new Date(a.timestamp) - new Date(b.timestamp))
+      .forEach(o=>{
+        container.appendChild(renderCard(o, key));
+      });
+  });
+}
+
+/* ---------- ESTADÍSTICAS ---------- */
+let statsMode = "date"; // "date" o "global"
+let statsSelectedDate = null; // "YYYY-MM-DD"
+
+function toLocalDateKey(dateVal){
+  const d = new Date(dateVal);
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const day = String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+}
+
+function parseItemsLine(itemsText){
+  // Cada línea tiene el formato: "2x Margarita — 23,00€"
+  const result = [];
+  (itemsText||"").split("\n").forEach(line=>{
+    const match = line.match(/^(\d+)x\s+(.+?)\s+—/);
+    if(match){
+      result.push({ qty: parseInt(match[1],10), name: match[2].trim() });
+    }
+  });
+  return result;
+}
+
+function renderStats(){
+  let source;
+  const label = document.getElementById("statsRangeLabel");
+
+  if(statsMode === "global"){
+    source = ordersCache;
+    label.textContent = `Mostrando: todos los pedidos (${ordersCache.length} en total)`;
+  } else {
+    if(!statsSelectedDate){
+      statsSelectedDate = toLocalDateKey(new Date());
+      document.getElementById("statsDateInput").value = statsSelectedDate;
+    }
+    source = ordersCache.filter(o => o.timestamp && toLocalDateKey(o.timestamp) === statsSelectedDate);
+    const [y,m,d] = statsSelectedDate.split("-");
+    label.textContent = `Mostrando: ${d}/${m}/${y}`;
+  }
+
+  const orderCount = source.length;
+  const revenue = source.reduce((sum,o)=> sum + (parseFloat(o.total)||0), 0);
+
+  const dishCounts = {};
+  let totalUnits = 0;
+  source.forEach(o=>{
+    parseItemsLine(o.items).forEach(it=>{
+      dishCounts[it.name] = (dishCounts[it.name]||0) + it.qty;
+      totalUnits += it.qty;
+    });
+  });
+
+  let topDish = "—";
+  let topQty = 0;
+  Object.entries(dishCounts).forEach(([name,qty])=>{
+    if(qty > topQty){ topQty = qty; topDish = name; }
+  });
+
+  const prepTimes = source
+    .filter(o=>o.readyAt)
+    .map(o=> (new Date(o.readyAt) - new Date(o.timestamp)) / 60000)
+    .filter(mins => mins >= 0 && mins < 300);
+  const avgPrep = prepTimes.length ? (prepTimes.reduce((a,b)=>a+b,0) / prepTimes.length) : null;
+
+  const deliveryCount = source.filter(o => (o.type||"").toLowerCase().includes("domicilio")).length;
+  const tableCount = source.filter(o => (o.type||"").toLowerCase().includes("mesa")).length;
+  const pickupCount = orderCount - deliveryCount - tableCount;
+
+  document.getElementById("statOrders").textContent = orderCount;
+  document.getElementById("statRevenue").textContent = revenue.toFixed(2).replace(".",",") + " €";
+  document.getElementById("statUnits").textContent = totalUnits;
+  document.getElementById("statAvgTime").textContent = avgPrep !== null ? Math.round(avgPrep) + " min" : "—";
+  document.getElementById("statDelivery").textContent = deliveryCount;
+  document.getElementById("statPickup").textContent = pickupCount;
+  document.getElementById("statTable").textContent = tableCount;
+  document.getElementById("statTopDish").textContent = topDish !== "—" ? `${topDish} (${topQty})` : "—";
+}
+
+document.getElementById("statsDateInput").addEventListener("change", (e)=>{
+  statsMode = "date";
+  statsSelectedDate = e.target.value;
+  document.getElementById("statsGlobalBtn").classList.remove("active");
+  renderStats();
+});
+document.getElementById("statsGlobalBtn").addEventListener("click", ()=>{
+  statsMode = "global";
+  document.getElementById("statsGlobalBtn").classList.add("active");
+  renderStats();
+});
+
+/* ---------- CAMBIO DE VISTA (PEDIDOS / ESTADÍSTICAS / CONFIGURACIÓN) ---------- */
+document.getElementById("viewTabPedidos").addEventListener("click", ()=>{
+  document.getElementById("viewTabPedidos").classList.add("active");
+  document.getElementById("viewTabStats").classList.remove("active");
+  document.getElementById("viewTabSettings").classList.remove("active");
+  document.getElementById("board").classList.remove("hide");
+  document.getElementById("statsView").classList.remove("show");
+  document.getElementById("settingsView").classList.remove("show");
+});
+document.getElementById("viewTabStats").addEventListener("click", ()=>{
+  document.getElementById("viewTabStats").classList.add("active");
+  document.getElementById("viewTabPedidos").classList.remove("active");
+  document.getElementById("viewTabSettings").classList.remove("active");
+  document.getElementById("board").classList.add("hide");
+  document.getElementById("statsView").classList.add("show");
+  document.getElementById("settingsView").classList.remove("show");
+  renderStats();
+});
+document.getElementById("viewTabSettings").addEventListener("click", ()=>{
+  document.getElementById("viewTabSettings").classList.add("active");
+  document.getElementById("viewTabPedidos").classList.remove("active");
+  document.getElementById("viewTabStats").classList.remove("active");
+  document.getElementById("board").classList.add("hide");
+  document.getElementById("statsView").classList.remove("show");
+  document.getElementById("settingsView").classList.add("show");
+  openSettingsGate();
+});
+
+function renderCard(o, colKey){
+  const div = document.createElement("div");
+  const statusClass = colKey === "Pendiente" ? "pendiente" : colKey === "Preparacion" ? "preparacion" : "listo";
+  div.className = "order-card " + statusClass;
+
+  const time = o.timestamp ? new Date(o.timestamp).toLocaleTimeString("es-ES", {hour:"2-digit", minute:"2-digit"}) : "";
+  const typeRaw = (o.type||"").toLowerCase();
+  const isDelivery = typeRaw.includes("domicilio");
+  const isTable = typeRaw.includes("mesa");
+  const typeClass = isDelivery ? "tag-domicilio" : isTable ? "tag-mesa" : "tag-recoger";
+  const typeLabel = isDelivery ? "🚗 Domicilio" : isTable ? `🍽 ${o.address ? escapeHtml(o.address) : "Mesa"}` : "🏠 Recoger en local";
+
+  div.innerHTML = `
+    <div class="order-top">
+      <span class="order-number">Nº ${o.orderNumber}</span>
+      <span class="order-time">${time}</span>
+    </div>
+    <div class="order-type-tag ${typeClass}">${typeLabel}</div>
+    <div class="order-name">${escapeHtml(o.name||"")}</div>
+    <div class="order-detail">${escapeHtml(o.phone||"")}</div>
+    ${isDelivery ? `<div class="order-detail">${escapeHtml(o.address||"")} (${escapeHtml(o.postal||"")})</div>` : ""}
+    <div class="order-items">${escapeHtml(o.items||"")}</div>
+    <div class="order-total">${formatTotal(o.total)}</div>
+    <div class="order-actions"></div>
+  `;
+
+  const actions = div.querySelector(".order-actions");
+  const advanceBtn = document.createElement("button");
+  advanceBtn.className = "action-btn primary";
+  advanceBtn.textContent = colKey === "Listo" ? "Marcar entregado" : "Avanzar → " + nextStatus(o.status);
+  advanceBtn.addEventListener("click", ()=> updateStatus(o.orderNumber, nextStatus(o.status)));
+  actions.appendChild(advanceBtn);
+
+  return div;
+}
+
+function escapeHtml(str){
+  const d = document.createElement("div");
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function formatTotal(total){
+  const n = parseFloat(total);
+  if(isNaN(n)) return "";
+  return n.toFixed(2).replace(".",",") + " €";
+}
+
+async function updateStatus(orderNumber, newStatus){
+  try{
+    await fetch(scriptUrl, {
+      method:"POST",
+      headers:{ "Content-Type":"text/plain;charset=utf-8" },
+      body: JSON.stringify({ action:"updateStatus", orderNumber, status:newStatus })
+    });
+  }catch(err){ /* se reintentará en el siguiente refresco */ }
+  fetchOrders();
+}
+
+/* ---------- CONFIGURACIÓN DEL RESTAURANTE ---------- */
+const DEFAULT_MENU = [
+  { cat: "Pizzas", items: [
+    { id:"p1", name:"Margarita", desc:"Tomate, fior di latte y orégano", price:11.50 },
+    { id:"p2", name:"Bacon", desc:"Tomate, fior di latte y bacón ahumado (ideal con rulo de cabra, extra 1€)", price:12.50 },
+    { id:"p3", name:"Proscuitto", desc:"Tomate, fior di latte y jamón cocido (ideal con rulo de cabra o champiñón, 1€ extra)", price:12.50 },
+    { id:"p4", name:"Arrotolata", desc:"Tomate, fior di latte y pancetta arrotolata", price:12.50 },
+    { id:"p5", name:"Bianca", desc:"Crema de nata, mozzarella fior di latte y panceta ibérica", price:12.50 },
+    { id:"p6", name:"Diablo", desc:"Tomate, fior di latte y salame napolitano picante", price:12.50 },
+    { id:"p7", name:"Atún", desc:"Tomate, fior di latte, atún y cebolla", price:12.50 },
+    { id:"p8", name:"Carbonara", desc:"Crema de nata, fior di latte, bacon y cebolla", price:13.00 },
+    { id:"p9", name:"Guanciale", desc:"Tomate, fior di latte, guanciale y champiñones", price:13.00 },
+    { id:"p10", name:"Hawaii", desc:"Tomate, fior di latte, pollo asado y piña", price:13.00 },
+    { id:"p11", name:"Jabalina", desc:"Tomate, fior di latte, cabezada ibérica, pistachos, provolone y orégano", price:13.00 },
+    { id:"p12", name:"Pomodoro", desc:"Tomate, fior di latte, tomate cherry, rúcula y parmesano", price:13.00 },
+    { id:"p13", name:"Serrano y Brie", desc:"Tomate, fior di latte, jamón serrano y queso brie", price:13.00 },
+    { id:"p14", name:"Barbacoa", desc:"Tomate, fior di latte, pollo asado, bacon y salsa barbacoa", price:13.50 },
+    { id:"p15", name:"Affumicata", desc:"Tomate, fior di latte, calabacín, queso ahumado y panceta arrotolata", price:13.50 },
+    { id:"p16", name:"Cabra y Nueces", desc:"Crema de nata, mozzarella fior di latte, rulo de cabra, nueces y miel", price:13.50 },
+    { id:"p17", name:"Flor de Quesos", desc:"Tomate, fior di latte, parmesano, gorgonzola y cabra", price:13.50 },
+    { id:"p18", name:"Gorgonzola y Setas", desc:"Tomate, fior di latte, gorgonzola picante y setas", price:13.50 },
+    { id:"p19", name:"Gorgonzola y Pera", desc:"Nata, fior di latte, gorgonzola y láminas de pera", price:13.50 },
+    { id:"p20", name:"Huevo", desc:"Crema de nata, fior di latte, pollo asado, bacon ahumado y huevo", price:13.50 },
+    { id:"p21", name:"Mar y Montaña", desc:"Tomate, fior di latte, panceta ibérica y atún", price:13.50 },
+    { id:"p22", name:"New Trigueros", desc:"Tomate, fior di latte, panceta ibérica, queso brie y espárragos trigueros", price:13.50 },
+    { id:"p23", name:"Pancetta", desc:"Tomate, fior di latte, panceta ibérica y setas", price:13.50 },
+    { id:"p24", name:"Sweet Chilli", desc:"Tomate, fior di latte, pechuga de pollo, pimiento verde y salsa de chile dulce", price:13.50 },
+    { id:"p25", name:"Vegetal", desc:"Crema de nata, mozzarella fior di latte, champiñón, calabacín, tomate cherry y orégano", price:13.50 },
+    { id:"p26", name:"Dúo", desc:"Tomate, mozzarella di búfala, jamón serrano, rúcula, tomate cherry, parmesano y módena", price:14.50 },
+    { id:"p27", name:"Al Pesto", desc:"Crema de nata, fior di latte, pesto rojo, jamón serrano, champiñones y cebolla", price:14.50 },
+    { id:"p28", name:"Foie", desc:"Tomate, fior di latte, manzana, foie y setas", price:15.00 },
+  ]},
+  { cat: "Calzones", items: [
+    { id:"c1", name:"Gorgonzola", desc:"Tomate, mozzarella fior di latte y gorgonzola", price:12.50 },
+    { id:"c2", name:"Mixto", desc:"Tomate, mozzarella fior di latte y jamón cocido", price:12.50 },
+    { id:"c3", name:"Picantón", desc:"Tomate, mozzarella fior di latte, salame picante y rúcula", price:13.50 },
+  ]},
+  { cat: "Ensaladas", items: [
+    { id:"e1", name:"Dúo", desc:"Rúcula, mozzarella di bufala, tomate cherry, parmesano, jamón serrano y módena", price:12.00 },
+    { id:"e2", name:"Caprese", desc:"Tomate, mozzarella di búfala, orégano, albahaca y aceite virgen extra (solo en temporada)", price:10.00 },
+  ]},
+];
+
+const DAYS = [
+  { key:"mon", label:"Lunes" },
+  { key:"tue", label:"Martes" },
+  { key:"wed", label:"Miércoles" },
+  { key:"thu", label:"Jueves" },
+  { key:"fri", label:"Viernes" },
+  { key:"sat", label:"Sábado" },
+  { key:"sun", label:"Domingo" },
+];
+
+const DEFAULT_RESTAURANT_CONFIG = {
+  phone: "34606690119",
+  whatsappEnabled: true,
+  testMode: false,
+  adminPassword: "duo2026",
+  menu: DEFAULT_MENU,
+  pause: { active:false, message:"Vamos muy desbordados ahora mismo, no podemos coger más pedidos para llevar. ¡Gracias por tu paciencia!" },
+  schedule: {
+    mon:{open:true, shifts:[["13:00","15:30"],["20:00","23:00"]]},
+    tue:{open:true, shifts:[["13:00","15:30"],["20:00","23:00"]]},
+    wed:{open:true, shifts:[["13:00","15:30"],["20:00","23:00"]]},
+    thu:{open:true, shifts:[["13:00","15:30"],["20:00","23:00"]]},
+    fri:{open:true, shifts:[["13:00","15:30"],["20:00","23:30"]]},
+    sat:{open:true, shifts:[["13:00","15:30"],["20:00","23:30"]]},
+    sun:{open:true, shifts:[["13:00","16:00"],["",""]]},
+  }
+};
+
+let restaurantConfig = JSON.parse(JSON.stringify(DEFAULT_RESTAURANT_CONFIG));
+let restaurantConfigLoaded = false;
+
+async function fetchRestaurantConfig(){
+  if(!scriptUrl) return null;
+  try{
+    const res = await fetch(`${scriptUrl}?action=config`);
+    return await res.json();
+  }catch(err){
+    return null;
+  }
+}
+
+function mergeRestaurantConfig(base, remote){
+  if(!remote) return base;
+  const merged = JSON.parse(JSON.stringify(base));
+  if(remote.phone !== undefined) merged.phone = remote.phone;
+  if(remote.whatsappEnabled !== undefined) merged.whatsappEnabled = remote.whatsappEnabled;
+  if(remote.testMode !== undefined) merged.testMode = remote.testMode;
+  if(remote.adminPassword !== undefined) merged.adminPassword = remote.adminPassword;
+  if(remote.pause !== undefined) merged.pause = remote.pause;
+  if(remote.schedule !== undefined) merged.schedule = remote.schedule;
+  if(remote.menu !== undefined && remote.menu.length > 0) merged.menu = remote.menu;
+  return merged;
+}
+
+async function saveRestaurantConfigRemote(cfg){
+  if(!scriptUrl) return false;
+  try{
+    await fetch(scriptUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        action: "saveConfig",
+        config: {
+          phone: cfg.phone,
+          whatsappEnabled: cfg.whatsappEnabled,
+          testMode: cfg.testMode,
+          adminPassword: cfg.adminPassword,
+          pause: cfg.pause,
+          schedule: cfg.schedule,
+          menu: cfg.menu
+        }
+      })
+    });
+    return true;
+  }catch(err){
+    return false;
+  }
+}
+
+async function ensureRestaurantConfigLoaded(){
+  if(restaurantConfigLoaded) return;
+  const remote = await fetchRestaurantConfig();
+  if(remote){
+    restaurantConfig = mergeRestaurantConfig(restaurantConfig, remote);
+  }
+  restaurantConfigLoaded = true;
+}
+
+function openSettingsGate(){
+  document.getElementById("settingsGateError").style.display = "none";
+  document.getElementById("settingsGatePassword").value = "";
+
+  ensureRestaurantConfigLoaded().then(()=>{
+    if(restaurantConfig.adminPassword){
+      document.getElementById("settingsGate").style.display = "block";
+      document.getElementById("settingsContent").style.display = "none";
+    } else {
+      document.getElementById("settingsGate").style.display = "none";
+      document.getElementById("settingsContent").style.display = "block";
+      fillSettingsFields();
+    }
+  });
+}
+
+document.getElementById("settingsGateSubmit").addEventListener("click", ()=>{
+  const entered = document.getElementById("settingsGatePassword").value;
+  if(entered === restaurantConfig.adminPassword){
+    document.getElementById("settingsGate").style.display = "none";
+    document.getElementById("settingsContent").style.display = "block";
+    fillSettingsFields();
+  } else {
+    document.getElementById("settingsGateError").style.display = "block";
+  }
+});
+document.getElementById("settingsGatePassword").addEventListener("keydown", (e)=>{
+  if(e.key === "Enter") document.getElementById("settingsGateSubmit").click();
+});
+
+function fillSettingsFields(){
+  document.getElementById("settingsAdminPassword").value = restaurantConfig.adminPassword || "";
+  document.getElementById("settingsPhone").value = restaurantConfig.phone || "";
+  document.getElementById("settingsWhatsappToggle").checked = restaurantConfig.whatsappEnabled;
+  document.getElementById("settingsTestModeToggle").checked = restaurantConfig.testMode || false;
+  document.getElementById("settingsPauseToggle").checked = restaurantConfig.pause.active;
+  document.getElementById("settingsPauseMessage").value = restaurantConfig.pause.message;
+  renderSettingsSchedule();
+  renderSettingsMenuList();
+  document.getElementById("settingsSaveConfirm").classList.remove("show");
+}
+
+function renderSettingsSchedule(){
+  const container = document.getElementById("settingsScheduleContainer");
+  container.innerHTML = "";
+  DAYS.forEach(day=>{
+    const d = restaurantConfig.schedule[day.key];
+    const row = document.createElement("div");
+    row.className = "day-row";
+    row.innerHTML = `
+      <div class="day-name">${day.label}</div>
+      <label class="switch" style="width:40px;height:22px;">
+        <input type="checkbox" data-day="${day.key}" class="settings-day-toggle" ${d.open ? "checked":""}>
+        <span class="slider"></span>
+      </label>
+      <div class="shift-inputs" data-day-shifts="${day.key}" style="${d.open ? "" : "opacity:0.3; pointer-events:none;"}">
+        <input type="time" value="${d.shifts[0][0]}" data-day="${day.key}" data-shift="0" data-part="start">
+        <span class="shift-sep">–</span>
+        <input type="time" value="${d.shifts[0][1]}" data-day="${day.key}" data-shift="0" data-part="end">
+        <span class="shift-sep">·</span>
+        <input type="time" value="${d.shifts[1][0]}" data-day="${day.key}" data-shift="1" data-part="start">
+        <span class="shift-sep">–</span>
+        <input type="time" value="${d.shifts[1][1]}" data-day="${day.key}" data-shift="1" data-part="end">
+      </div>
+    `;
+    container.appendChild(row);
+  });
+
+  container.querySelectorAll(".settings-day-toggle").forEach(toggle=>{
+    toggle.addEventListener("change", ()=>{
+      const shiftsEl = container.querySelector(`[data-day-shifts="${toggle.dataset.day}"]`);
+      shiftsEl.style.opacity = toggle.checked ? "1" : "0.3";
+      shiftsEl.style.pointerEvents = toggle.checked ? "auto" : "none";
+    });
+  });
+}
+
+function renderSettingsMenuList(){
+  const container = document.getElementById("settingsMenuList");
+  const datalist = document.getElementById("settingsCategoryOptions");
+  container.innerHTML = "";
+  datalist.innerHTML = "";
+
+  restaurantConfig.menu.forEach(group=>{
+    const opt = document.createElement("option");
+    opt.value = group.cat;
+    datalist.appendChild(opt);
+
+    const catHeader = document.createElement("div");
+    catHeader.className = "menu-list-cat";
+    catHeader.textContent = group.cat;
+    container.appendChild(catHeader);
+
+    group.items.forEach(item=>{
+      const row = document.createElement("div");
+      row.className = "menu-list-row";
+      row.innerHTML = `
+        <span class="menu-list-name">${item.name}</span>
+        <span class="menu-list-price">${item.price.toFixed(2).replace(".",",")}€</span>
+        <button class="remove-dish-btn" data-cat="${group.cat}" data-id="${item.id}" title="Quitar de la carta">✕</button>
+      `;
+      container.appendChild(row);
+    });
+  });
+
+  container.querySelectorAll(".remove-dish-btn").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const cat = btn.dataset.cat;
+      const id = btn.dataset.id;
+      const group = restaurantConfig.menu.find(g=>g.cat===cat);
+      if(group){
+        group.items = group.items.filter(i=>i.id!==id);
+        if(group.items.length===0) restaurantConfig.menu = restaurantConfig.menu.filter(g=>g.cat!==cat);
+      }
+      renderSettingsMenuList();
+    });
+  });
+}
+
+function slugify(text){
+  return text.toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"");
+}
+
+document.getElementById("settingsAddDishBtn").addEventListener("click", ()=>{
+  const catName = document.getElementById("settingsNewDishCategory").value.trim();
+  const name = document.getElementById("settingsNewDishName").value.trim();
+  const desc = document.getElementById("settingsNewDishDesc").value.trim();
+  const priceRaw = document.getElementById("settingsNewDishPrice").value.trim().replace(",",".");
+  const price = parseFloat(priceRaw);
+
+  if(!catName || !name || isNaN(price)){
+    alert("Rellena al menos la categoría, el nombre y un precio válido.");
+    return;
+  }
+
+  const id = slugify(name) + "-" + Date.now();
+  let group = restaurantConfig.menu.find(g=>g.cat.toLowerCase()===catName.toLowerCase());
+  if(!group){
+    group = { cat: catName, items: [] };
+    restaurantConfig.menu.push(group);
+  }
+  group.items.push({ id, name, desc, price });
+
+  renderSettingsMenuList();
+  document.getElementById("settingsNewDishName").value = "";
+  document.getElementById("settingsNewDishDesc").value = "";
+  document.getElementById("settingsNewDishPrice").value = "";
+});
+
+document.getElementById("settingsSaveBtn").addEventListener("click", async ()=>{
+  restaurantConfig.phone = document.getElementById("settingsPhone").value.replace(/[^0-9]/g,"");
+  restaurantConfig.adminPassword = document.getElementById("settingsAdminPassword").value;
+  restaurantConfig.whatsappEnabled = document.getElementById("settingsWhatsappToggle").checked;
+  restaurantConfig.testMode = document.getElementById("settingsTestModeToggle").checked;
+  restaurantConfig.pause.active = document.getElementById("settingsPauseToggle").checked;
+  restaurantConfig.pause.message = document.getElementById("settingsPauseMessage").value;
+
+  DAYS.forEach(day=>{
+    const openToggle = document.querySelector(`.settings-day-toggle[data-day="${day.key}"]`);
+    const isOpen = openToggle.checked;
+    const shift0start = document.querySelector(`#settingsScheduleContainer input[data-day="${day.key}"][data-shift="0"][data-part="start"]`).value;
+    const shift0end = document.querySelector(`#settingsScheduleContainer input[data-day="${day.key}"][data-shift="0"][data-part="end"]`).value;
+    const shift1start = document.querySelector(`#settingsScheduleContainer input[data-day="${day.key}"][data-shift="1"][data-part="start"]`).value;
+    const shift1end = document.querySelector(`#settingsScheduleContainer input[data-day="${day.key}"][data-shift="1"][data-part="end"]`).value;
+    restaurantConfig.schedule[day.key] = {
+      open: isOpen,
+      shifts: [[shift0start,shift0end],[shift1start,shift1end]]
+    };
+  });
+
+  const saveBtn = document.getElementById("settingsSaveBtn");
+  saveBtn.disabled = true;
+  saveBtn.textContent = "Guardando...";
+  const saved = await saveRestaurantConfigRemote(restaurantConfig);
+  saveBtn.disabled = false;
+  saveBtn.textContent = "Guardar cambios";
+
+  const confirmEl = document.getElementById("settingsSaveConfirm");
+  confirmEl.textContent = saved
+    ? "✓ Cambios guardados y compartidos con todos los dispositivos (clientes, camareros y este panel)"
+    : "⚠ No se pudo conectar con la hoja. Comprueba la conexión e inténtalo de nuevo.";
+  confirmEl.classList.add("show");
+});
+
+/* ---------- INIT ---------- */
+document.getElementById("statsDateInput").value = toLocalDateKey(new Date());
+statsSelectedDate = toLocalDateKey(new Date());
+
+scriptUrl = loadUrl();
+if(scriptUrl){
+  showBoard();
+  fetchOrders();
+  startPolling();
+} else {
+  showSetup();
+}
+</script>
+
+</body>
+</html>
