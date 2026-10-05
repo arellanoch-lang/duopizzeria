@@ -6,10 +6,6 @@
 | `panel-pedidos.html` | Cocina y dueño | Tablero de pedidos (avisa al cliente por WhatsApp al cambiar de estado), estadísticas, pausa rápida y configuración. |
 | `Code.gs` | Google Apps Script | "Servidor" compartido: guarda pedidos y configuración en la Google Sheet y reparte los números de pedido. |
 
-## Otras webs en este repositorio
-
-- [`fornobomba/`](fornobomba/README.md): Forno Bomba (Sants, Barcelona), encargos online con recogida en el local por día y tramo horario.
-
 ## Publicar cambios
 
 - **Web y panel:** basta con subirlos a la rama `main`; GitHub Pages los publica en uno o dos minutos.
