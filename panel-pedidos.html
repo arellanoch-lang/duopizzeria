@@ -991,6 +991,8 @@ function renderStats(){
   document.getElementById("statDelivery").textContent = deliveryCount;
   document.getElementById("statPickup").textContent = pickupCount;
   document.getElementById("statTable").textContent = tableCount;
+  // La casilla de Mesa solo aparece si hay pedidos de sala (servicio de camareros).
+  document.getElementById("statTable").parentElement.style.display = tableCount ? "" : "none";
   document.getElementById("statTopDish").textContent = topDish !== "—" ? `${topDish} (${topQty})` : "—";
 }
 
