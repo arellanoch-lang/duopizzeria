@@ -1072,7 +1072,7 @@ function renderCard(o, colKey){
     advanceBtn.disabled = true;
     // WhatsApp se abre en el mismo clic: si se espera a la hoja, el navegador bloquea la ventana.
     if(waUrl) window.open(waUrl, "_blank");
-    updateStatus(o.orderNumber, newStatus);
+    updateStatus(o, newStatus);
   });
   actions.appendChild(advanceBtn);
 
@@ -1131,8 +1131,9 @@ function formatTotal(total){
   return n.toFixed(2).replace(".",",") + " €";
 }
 
-async function updateStatus(orderNumber, newStatus){
-  await api("updateStatus", { orderNumber, status:newStatus }); // si falla, se verá en el siguiente refresco
+async function updateStatus(o, newStatus){
+  // La fecha y hora identifican el pedido aunque haya números repetidos en la hoja.
+  await api("updateStatus", { orderNumber:o.orderNumber, timestamp:o.timestamp, status:newStatus }); // si falla, se verá en el siguiente refresco
   fetchOrders();
 }
 

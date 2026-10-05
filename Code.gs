@@ -165,15 +165,37 @@ function getNextOrderNumber() {
   for (let i = 1; i < rows.length; i++) {
     if (rows[i][0] === ORDER_COUNTER_KEY) { rowIndex = i; break; }
   }
-  let current;
-  if (rowIndex === -1) {
-    current = FIRST_ORDER_NUMBER;
-    sheet.appendRow([ORDER_COUNTER_KEY, current + 1]);
-  } else {
-    current = parseInt(rows[rowIndex][1], 10) || FIRST_ORDER_NUMBER;
-    sheet.getRange(rowIndex + 1, 2).setValue(current + 1);
-  }
+  let current = FIRST_ORDER_NUMBER;
+  if (rowIndex !== -1) current = parseInt(rows[rowIndex][1], 10) || FIRST_ORDER_NUMBER;
+  // Nunca por debajo del mayor número que ya existe en "Pedidos": así no se repiten
+  // aunque el contador se haya borrado o se haya cambiado a mano en la hoja.
+  current = Math.max(current, getMaxOrderNumber() + 1);
+  if (rowIndex === -1) sheet.appendRow([ORDER_COUNTER_KEY, current + 1]);
+  else sheet.getRange(rowIndex + 1, 2).setValue(current + 1);
   return current;
+}
+
+function getMaxOrderNumber() {
+  const rows = getSheet().getDataRange().getValues();
+  let max = 0;
+  for (let i = 1; i < rows.length; i++) {
+    const n = parseInt(rows[i][1], 10);
+    if (!isNaN(n) && n > max) max = n;
+  }
+  return max;
+}
+
+// Fila (índice en rows) del pedido. Si hay números repetidos de antes, la fecha y hora
+// del pedido decide cuál es; sin ella, el más reciente con ese número.
+function findOrderRow(rows, orderNumber, timestamp) {
+  const wanted = timestamp ? new Date(timestamp).getTime() : NaN;
+  let latest = -1;
+  for (let i = rows.length - 1; i >= 1; i--) {
+    if (String(rows[i][1]) !== String(orderNumber)) continue;
+    if (latest === -1) latest = i;
+    if (!isNaN(wanted) && rows[i][0] && new Date(rows[i][0]).getTime() === wanted) return i;
+  }
+  return latest;
 }
 
 function doPost(e) {
@@ -227,18 +249,15 @@ function doPost(e) {
       if (!role) return jsonResponse({ success: false, error: "auth" });
       const sheet = getSheet();
       const rows = sheet.getDataRange().getValues();
-      for (let i = 1; i < rows.length; i++) {
-        if (String(rows[i][1]) === String(data.orderNumber)) {
-          sheet.getRange(i + 1, 10).setValue(data.status);
-          const now = new Date();
-          if (data.status === "Listo" && !rows[i][10]) {
-            sheet.getRange(i + 1, 11).setValue(now);
-          }
-          if (data.status === "Entregado" && !rows[i][11]) {
-            sheet.getRange(i + 1, 12).setValue(now);
-          }
-          break;
-        }
+      const i = findOrderRow(rows, data.orderNumber, data.timestamp);
+      if (i === -1) return jsonResponse({ success: false, error: "Pedido no encontrado" });
+      sheet.getRange(i + 1, 10).setValue(data.status);
+      const now = new Date();
+      if (data.status === "Listo" && !rows[i][10]) {
+        sheet.getRange(i + 1, 11).setValue(now);
+      }
+      if (data.status === "Entregado" && !rows[i][11]) {
+        sheet.getRange(i + 1, 12).setValue(now);
       }
       return jsonResponse({ success: true });
     }
