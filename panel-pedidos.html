@@ -878,6 +878,7 @@ async function fetchOrders(){
 
 function statusToKey(status){
   const s = (status||"").toLowerCase();
+  if(s.includes("entregado")) return "Entregado";
   if(s.includes("preparaci")) return "Preparacion";
   if(s.includes("listo")) return "Listo";
   return "Pendiente";
